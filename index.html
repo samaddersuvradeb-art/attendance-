@@ -688,9 +688,32 @@ let perfActiveRole = {daily:'analyst', weekly:'analyst', monthly:'analyst'};
    STORAGE HELPERS — talk to the server-side /.netlify/functions/store API
    (Netlify Blobs), which is the shared, multi-user storage backing this
    app. Every call goes through here so nothing ever touches the browser's
-   local/session storage.
+   local/session storage. Attendance saves AND Leave Tracker saves both go
+   through this exact same code — that's intentional (one shared backend
+   mechanism), but it also means a bug here shows up identically in both
+   features, which is why they're handled together below.
 =================================================================== */
 const STORE_ENDPOINT = '/.netlify/functions/store';
+
+// Holds the real server/network error from the most recent failed storage
+// call, e.g. { status: 401, message: 'Admin authentication required.' }.
+// Set right before any storeX() helper below returns a failure value, and
+// cleared on success — since each call is `await`ed to completion before
+// the next line runs, it's always safe to read this synchronously
+// immediately after a failed storeX() call. Callers use this to show the
+// REAL reason a save failed instead of a generic guess.
+let lastStoreError = null;
+
+async function parseStoreErrorResponse(res){
+  let message = `HTTP ${res.status}`;
+  try{
+    const body = await res.json();
+    if(body && body.error) message = body.error;
+  }catch(e){ /* body wasn't JSON — keep the generic HTTP-status message */ }
+  return { status: res.status, message };
+}
+
+function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
 
 async function storeGet(key){
   try{
@@ -698,10 +721,15 @@ async function storeGet(key){
       method: 'GET',
       credentials: 'same-origin',
     });
-    if(!res.ok) return null;
+    if(!res.ok){ lastStoreError = await parseStoreErrorResponse(res); return null; }
+    lastStoreError = null;
     const body = await res.json();
     return body && body.value !== undefined ? body.value : null;
-  }catch(e){ console.error('storeGet failed', key, e); return null; }
+  }catch(e){
+    console.error('storeGet failed', key, e);
+    lastStoreError = { status: 0, message: 'Network error — check your connection.' };
+    return null;
+  }
 }
 
 async function storeSet(key, value, isProtected){
@@ -712,8 +740,14 @@ async function storeSet(key, value, isProtected){
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({key, value, protected: !!isProtected}),
     });
-    return res.ok;
-  }catch(e){ console.error('storeSet failed', key, e); return false; }
+    if(!res.ok){ lastStoreError = await parseStoreErrorResponse(res); return false; }
+    lastStoreError = null;
+    return true;
+  }catch(e){
+    console.error('storeSet failed', key, e);
+    lastStoreError = { status: 0, message: 'Network error — check your connection.' };
+    return false;
+  }
 }
 
 async function storeDelete(key, isProtected){
@@ -724,8 +758,14 @@ async function storeDelete(key, isProtected){
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({key, protected: !!isProtected}),
     });
-    return res.ok;
-  }catch(e){ console.error('storeDelete failed', key, e); return false; }
+    if(!res.ok){ lastStoreError = await parseStoreErrorResponse(res); return false; }
+    lastStoreError = null;
+    return true;
+  }catch(e){
+    console.error('storeDelete failed', key, e);
+    lastStoreError = { status: 0, message: 'Network error — check your connection.' };
+    return false;
+  }
 }
 
 /**
@@ -737,21 +777,48 @@ async function storeDelete(key, isProtected){
  * attendance for the same date), so one user's save can never overwrite
  * another user's concurrent save. A `null` value in `patch` deletes that
  * field. Returns the authoritative merged object from the server (or null
- * on failure), so the caller can sync its local cache with what actually
- * ended up stored.
+ * on failure — check lastStoreError for why), so the caller can sync its
+ * local cache with what actually ended up stored.
+ *
+ * The server already retries internally on a conflicting concurrent write
+ * (up to 8 attempts) before ever responding with 409, so a 409 reaching
+ * here means it lost that race every single time — rare, but we still add
+ * a couple of client-side retries as extra insurance rather than
+ * immediately giving up (see requirement: don't treat a 409 as a plain
+ * failure).
  */
+async function storeMergeRequest(bodyExtra, key, isProtected){
+  const MAX_CLIENT_RETRIES = 3;
+  for(let attempt = 0; attempt < MAX_CLIENT_RETRIES; attempt++){
+    try{
+      const res = await fetch(STORE_ENDPOINT, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({key, protected: !!isProtected, ...bodyExtra}),
+      });
+      if(res.ok){
+        lastStoreError = null;
+        const body = await res.json();
+        return body && body.value !== undefined ? body.value : null;
+      }
+      lastStoreError = await parseStoreErrorResponse(res);
+      if(res.status === 409 && attempt < MAX_CLIENT_RETRIES-1){
+        await sleep(150 + Math.random()*250);
+        continue; // retry a genuine conflict instead of failing immediately
+      }
+      return null;
+    }catch(e){
+      console.error('store merge request failed', key, e);
+      lastStoreError = { status: 0, message: 'Network error — check your connection.' };
+      return null;
+    }
+  }
+  return null;
+}
+
 async function storeMerge(key, patch, isProtected){
-  try{
-    const res = await fetch(STORE_ENDPOINT, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({key, merge: patch, protected: !!isProtected}),
-    });
-    if(!res.ok) return null;
-    const body = await res.json();
-    return body && body.value !== undefined ? body.value : null;
-  }catch(e){ console.error('storeMerge failed', key, e); return null; }
+  return storeMergeRequest({merge: patch}, key, isProtected);
 }
 
 /** Atomic partial update, one level deeper than storeMerge: shallow-merges
@@ -765,32 +832,12 @@ async function storeMerge(key, patch, isProtected){
  * deletes that whole record. Returns the authoritative merged object.
  */
 async function storeFieldMerge(key, fieldPatchesByRecordId, isProtected){
-  try{
-    const res = await fetch(STORE_ENDPOINT, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({key, fieldMerge: fieldPatchesByRecordId, protected: !!isProtected}),
-    });
-    if(!res.ok) return null;
-    const body = await res.json();
-    return body && body.value !== undefined ? body.value : null;
-  }catch(e){ console.error('storeFieldMerge failed', key, e); return null; }
+  return storeMergeRequest({fieldMerge: fieldPatchesByRecordId}, key, isProtected);
 }
 
 /** Atomic "ensure this value is present in the array stored at key". */
 async function storeArrayAdd(key, value){
-  try{
-    const res = await fetch(STORE_ENDPOINT, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({key, arrayAdd: value}),
-    });
-    if(!res.ok) return null;
-    const body = await res.json();
-    return body && body.value !== undefined ? body.value : null;
-  }catch(e){ console.error('storeArrayAdd failed', key, e); return null; }
+  return storeMergeRequest({arrayAdd: value}, key, false);
 }
 
 function toast(msg){
@@ -917,10 +964,12 @@ async function saveAttendanceRecord(date, fieldPatchesByEmpId){
     // same employee) in the meantime isn't lost from our local cache.
     attendanceCache[date] = merged;
   } else {
-    // Extremely unlikely (would need 8 straight conflicting writes to the
-    // exact same date), but never fail silently — the user's edit is still
-    // sitting in attendanceCache locally, but wasn't confirmed saved.
-    toast('Could not save just now — please try the edit again. Check your connection if this repeats.');
+    // Never fail silently — show the REAL server/network error so an
+    // actual problem (auth, storage outage, etc.) is visible instead of a
+    // generic guess. The user's edit is still sitting in attendanceCache
+    // locally, but wasn't confirmed saved.
+    const reason = lastStoreError ? lastStoreError.message : 'Unknown error.';
+    toast(`Could not save attendance: ${reason}`);
   }
   await ensureDateInIndex(date);
 }
@@ -2071,12 +2120,20 @@ async function submitLeaveRecord(){
   };
 
   const ok = await storeSet('leave:'+id, JSON.stringify(record));
-  if(!ok){ toast('Could not save — the screenshot may be too large.'); return; }
+  if(!ok){
+    const reason = lastStoreError ? lastStoreError.message : 'Unknown error.';
+    toast(`Could not save leave record: ${reason}`);
+    return;
+  }
 
-  const idxRaw = await storeGet('leave_index');
-  const idx = idxRaw ? JSON.parse(idxRaw) : [];
-  idx.push(id);
-  await storeSet('leave_index', JSON.stringify(idx));
+  // Atomic add (same conflict-safe primitive used for attendance_dates) so
+  // two people creating leave records at the same time can't drop one
+  // record's id from the index.
+  const idxResult = await storeArrayAdd('leave_index', id);
+  if(!Array.isArray(idxResult)){
+    const reason = lastStoreError ? lastStoreError.message : 'Unknown error.';
+    toast(`Leave record saved, but the leave index could not be updated: ${reason}. It will still appear after a page refresh.`);
+  }
   await rebuildLeaveByDateMap();
 
   currentLeaveDates = []; currentScreenshot = null;
@@ -2245,7 +2302,11 @@ async function saveLeaveEdit(record){
   if(!modalLeaveDates.length){ toast('Add at least one date.'); return; }
   const updated = {...record, employeeId:empId, employeeName: emp?emp.name:record.employeeName, type, dates:[...modalLeaveDates], screenshot: modalScreenshot};
   const ok = await storeSet('leave:'+record.id, JSON.stringify(updated));
-  if(!ok){ toast('Could not save — the screenshot may be too large.'); return; }
+  if(!ok){
+    const reason = lastStoreError ? lastStoreError.message : 'Unknown error.';
+    toast(`Could not save leave record: ${reason}`);
+    return;
+  }
   await rebuildLeaveByDateMap();
   closeGenericModal();
   toast('Leave record updated.');
