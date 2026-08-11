@@ -87,3 +87,11 @@ ADMIN_PASSWORD=choose-a-local-password
   `<style>` since the app is a single self-contained HTML file with no build
   step. If you later split the inline script into an external file, you can
   tighten the CSP by removing `'unsafe-inline'` from `script-src`.
+
+
+## FIXED-v5 changes
+- Screenshot uploads are resized and JPEG-compressed before being stored.
+- Oversized screenshots are rejected before they reach the Netlify Function.
+- Edit-leave screenshot uploads use the same compression path.
+- Storage requests over the safe client payload threshold show a clear message.
+- The Netlify storage function now returns HTTP 413 with a clear explanation for oversized requests.

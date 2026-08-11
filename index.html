@@ -734,11 +734,19 @@ async function storeGet(key){
 
 async function storeSet(key, value, isProtected){
   try{
+    const payload = {key, value, protected: !!isProtected};
+    const body = JSON.stringify(payload);
+    // Prevent a large leave/screenshot payload from becoming a vague
+    // serverless "payload too large" failure.
+    if(body.length > 4.5 * 1024 * 1024){
+      lastStoreError = {status: 413, message: 'The data is too large to save. Please use a smaller screenshot.'};
+      return false;
+    }
     const res = await fetch(STORE_ENDPOINT, {
       method: 'POST',
       credentials: 'same-origin',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({key, value, protected: !!isProtected}),
+      body,
     });
     if(!res.ok){ lastStoreError = await parseStoreErrorResponse(res); return false; }
     lastStoreError = null;
@@ -2087,19 +2095,71 @@ function renderDateChips(){
   });
 }
 
-function handleScreenshotUpload(e){
+async function compressScreenshot(file){
+  // Screenshots are stored inside the leave JSON, so keep the encoded
+  // payload comfortably below serverless request/body limits.
+  const MAX_DIM = 1600;
+  const TARGET_BYTES = 1200 * 1024;
+
+  if(!file || !file.type || !file.type.startsWith('image/')){
+    throw new Error('Please choose an image file.');
+  }
+
+  const dataUrl = await new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=>resolve(reader.result);
+    reader.onerror = ()=>reject(new Error('Could not read the image.'));
+    reader.readAsDataURL(file);
+  });
+
+  const img = await new Promise((resolve, reject)=>{
+    const image = new Image();
+    image.onload = ()=>resolve(image);
+    image.onerror = ()=>reject(new Error('Could not open the image.'));
+    image.src = dataUrl;
+  });
+
+  const scale = Math.min(1, MAX_DIM / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round((img.naturalWidth || img.width) * scale));
+  canvas.height = Math.max(1, Math.round((img.naturalHeight || img.height) * scale));
+
+  const ctx = canvas.getContext('2d', {alpha:false});
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  let quality = 0.82;
+  let result = canvas.toDataURL('image/jpeg', quality);
+
+  // Reduce quality progressively if the encoded screenshot is still large.
+  for(let i=0; i<5 && result.length * 0.75 > TARGET_BYTES; i++){
+    quality -= 0.10;
+    result = canvas.toDataURL('image/jpeg', Math.max(0.35, quality));
+  }
+
+  if(result.length * 0.75 > 1800 * 1024){
+    throw new Error('The screenshot is still too large after compression. Please use a smaller image.');
+  }
+  return result;
+}
+
+async function handleScreenshotUpload(e){
   const file = e.target.files[0];
   if(!file) return;
-  if(file.size > 4*1024*1024){
-    toast('That image is quite large — try a smaller screenshot (under ~4MB).');
-  }
-  const reader = new FileReader();
-  reader.onload = (evt)=>{
-    currentScreenshot = evt.target.result;
+
+  try{
+    const compressed = await compressScreenshot(file);
+    currentScreenshot = compressed;
     document.getElementById('screenshotLabel').innerHTML =
       `${esc(file.name)}<br><img src="${currentScreenshot}">`;
-  };
-  reader.readAsDataURL(file);
+    toast('Screenshot attached and compressed.');
+  }catch(err){
+    currentScreenshot = null;
+    e.target.value = '';
+    document.getElementById('screenshotLabel').textContent = 'Click to attach a screenshot';
+    toast(err && err.message ? err.message : 'Could not process the screenshot.');
+  }
 }
 
 async function submitLeaveRecord(){
@@ -2282,14 +2342,17 @@ function openLeaveEditModal(record){
           modalLeaveDates.push(inp.value); modalLeaveDates.sort(); renderEditDateChips(); inp.value='';
         }
       });
-      document.getElementById('editScreenshotInput').addEventListener('change', (e)=>{
+      document.getElementById('editScreenshotInput').addEventListener('change', async (e)=>{
         const file = e.target.files[0]; if(!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev)=>{
-          modalScreenshot = ev.target.result;
-          document.getElementById('editScreenshotLabel').textContent = file.name;
-        };
-        reader.readAsDataURL(file);
+        try{
+          modalScreenshot = await compressScreenshot(file);
+          document.getElementById('editScreenshotLabel').textContent = `${file.name} (compressed)`;
+        }catch(err){
+          e.target.value = '';
+          modalScreenshot = record.screenshot || null;
+          document.getElementById('editScreenshotLabel').textContent = 'No new screenshot selected';
+          toast(err && err.message ? err.message : 'Could not process the screenshot.');
+        }
       });
     }
   );
