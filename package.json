@@ -1,0 +1,18 @@
+{
+  "name": "team-suvradeb-attendance-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Team Suvradeb Leave & Attendance Tracker — static frontend with Netlify Functions for server-side storage and admin authentication.",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "netlify dev"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  }
+}

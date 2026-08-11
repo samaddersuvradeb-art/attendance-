@@ -1,0 +1,2622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Team Suvradeb Leave & Attendance Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --navy:#232A45; --navy-deep:#171C30;
+
+    /* ---- Light theme (default) ---- */
+    --ink:#1B2130; --ink-soft:#5B6270; --line:#E3E6EC; --line-strong:#C7CCD8;
+    --paper:#F5F6F9; --card:#FFFFFF;
+    --disabled-bg:#F0F1F4; --disabled-text:#9AA0AC;
+    --teal:#0E8E86; --teal-soft:#E3F5F3;
+    --amber:#C9791C; --amber-soft:#FCEFDD;
+    --present:#1B8A5A; --present-soft:#E5F6ED;
+    --absent:#C0392B; --absent-soft:#FBEAE9;
+    --rosteroff:#6B7280; --rosteroff-soft:#EEF0F3;
+    --weekend:#6D5DBF; --weekend-soft:#EEEAFA;
+    --halfleave:#C9791C; --halfleave-soft:#FCEFDD;
+    --latejoin:#1F6FB2; --latejoin-soft:#E7F1FA;
+    --onleave:#B23A76; --onleave-soft:#FBE7F0;
+    --weekend-row:#EAF4FC; --weekend-row-strip:#DFEEFB;
+  }
+  html[data-theme="dark"]{
+    --ink:#E7E9EE; --ink-soft:#9AA1B0; --line:#2A2F3A; --line-strong:#3A4150;
+    --paper:#12151C; --card:#1B2029;
+    --disabled-bg:#232833; --disabled-text:#6B7280;
+    --teal:#28C9BE; --teal-soft:#12403D;
+    --amber:#E0A552; --amber-soft:#3D2E14;
+    --present:#3FC286; --present-soft:#123A28;
+    --absent:#E2685A; --absent-soft:#3A1815;
+    --rosteroff:#9AA1B0; --rosteroff-soft:#252A33;
+    --weekend:#9C8CE0; --weekend-soft:#28213D;
+    --halfleave:#E0A552; --halfleave-soft:#3D2E14;
+    --latejoin:#5AA6E0; --latejoin-soft:#152B3D;
+    --onleave:#E077AC; --onleave-soft:#3B1E2C;
+    --weekend-row:#16232E; --weekend-row-strip:#122029;
+  }
+  html[data-theme="warm"]{
+    --ink:#3A2E22; --ink-soft:#8A7660; --line:#EAD9C0; --line-strong:#D9C1A0;
+    --paper:#FBF3E7; --card:#FFFCF6;
+    --disabled-bg:#F1E6D4; --disabled-text:#A6947E;
+    --teal:#B5651D; --teal-soft:#F3E1CB;
+    --amber:#C9791C; --amber-soft:#F7E4C9;
+    --present:#3F7D45; --present-soft:#E4F0DE;
+    --absent:#B23B2E; --absent-soft:#F7DCD3;
+    --rosteroff:#8A7660; --rosteroff-soft:#F1E7D8;
+    --weekend:#7A5DA6; --weekend-soft:#EDE3F5;
+    --halfleave:#C9791C; --halfleave-soft:#F7E4C9;
+    --latejoin:#3E76A6; --latejoin-soft:#E1EDF5;
+    --onleave:#A34472; --onleave-soft:#F5E1EC;
+    --weekend-row:#EEF3FA; --weekend-row-strip:#E3ECF7;
+  }
+  *{box-sizing:border-box;}
+  html, body{ height:100%; }
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased;
+    transition:background .2s ease, color .2s ease;
+  }
+  h1,h2,h3,.display{font-family:'Sora',sans-serif;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  /* ---------- Header ---------- */
+  header.app-head{
+    background:linear-gradient(160deg,var(--navy) 0%, var(--navy-deep) 100%);
+    color:#fff; padding:16px 22px; display:flex; align-items:center; justify-content:space-between;
+    gap:16px; flex-wrap:wrap; position:sticky; top:0; z-index:40;
+  }
+  .hamburger-btn{
+    background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18); color:#fff;
+    width:38px; height:38px; border-radius:9px; font-size:16px; cursor:pointer; flex-shrink:0;
+  }
+  .hamburger-btn:hover{background:rgba(255,255,255,0.16);}
+  header.app-head .brand{display:flex; align-items:center; gap:12px;}
+  header.app-head .mark{
+    width:38px;height:38px;border-radius:10px;background:var(--teal);
+    display:flex;align-items:center;justify-content:center;font-family:'Sora';font-weight:800;font-size:14px;color:#fff;
+    box-shadow:0 0 0 4px rgba(14,142,134,0.25); flex-shrink:0;
+  }
+  header.app-head h1{font-size:17.5px; margin:0; letter-spacing:0.2px; line-height:1.25;}
+  header.app-head .sub{font-size:12px; color:#AEB4C7; margin-top:2px;}
+
+  /* ---------- Layout shell ---------- */
+  .app-shell{display:flex; align-items:flex-start; min-height:calc(100vh - 70px);}
+  main{flex:1; min-width:0; padding:26px 28px 80px; max-width:1180px; margin:0 auto;}
+  .view{display:none;}
+  .view.active{display:block;}
+
+  /* ---------- Right sidebar ---------- */
+  .sidebar{
+    width:220px; flex-shrink:0; position:sticky; top:70px; height:calc(100vh - 70px);
+    background:linear-gradient(180deg,var(--navy) 0%, var(--navy-deep) 100%);
+    display:flex; flex-direction:column; justify-content:space-between; transition:width .2s ease;
+    overflow:hidden;
+  }
+  body.sidebar-collapsed .sidebar{width:64px;}
+  body.sidebar-collapsed .side-label, body.sidebar-collapsed .side-themes-label{display:none;}
+  .side-nav{padding:16px 10px; display:flex; flex-direction:column; gap:4px;}
+  .side-btn{
+    display:flex; align-items:center; gap:12px; background:none; border:none; color:#C7CCE0;
+    padding:11px 12px; border-radius:9px; cursor:pointer; font-family:'Inter'; font-weight:600; font-size:13px;
+    text-align:left; white-space:nowrap;
+  }
+  .side-btn:hover{background:rgba(255,255,255,0.08); color:#fff;}
+  .side-btn.active{background:rgba(14,142,134,0.28); color:#fff;}
+  .side-icon{font-size:16px; width:20px; text-align:center; flex-shrink:0;}
+  .side-themes{padding:16px 14px 20px; border-top:1px solid rgba(255,255,255,0.1);}
+  .side-themes-label{
+    font-family:'JetBrains Mono'; font-size:9.5px; text-transform:uppercase; letter-spacing:1.2px;
+    color:#8990A8; margin-bottom:8px;
+  }
+  .theme-row{display:flex; gap:6px;}
+  .theme-btn{
+    flex:1; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); color:#fff;
+    padding:8px 0; border-radius:8px; cursor:pointer; font-size:14px;
+  }
+  .theme-btn.active{background:var(--teal); border-color:var(--teal);}
+
+  .panel{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:22px; margin-bottom:20px; transition:background .2s ease, border-color .2s ease;
+  }
+  .panel-head{display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:16px; flex-wrap:wrap;}
+  .panel-head h2{font-size:16.5px; margin:0; display:flex; align-items:center; gap:8px;}
+  .panel-head .eyebrow{
+    font-family:'JetBrains Mono'; font-size:10.5px; letter-spacing:1.5px; text-transform:uppercase;
+    color:var(--teal); font-weight:600; display:block; margin-bottom:3px;
+  }
+  .hint{color:var(--ink-soft); font-size:12.5px; line-height:1.5;}
+
+  .btn{
+    border:none; cursor:pointer; font-family:'Inter'; font-weight:600; font-size:13px;
+    padding:9px 15px; border-radius:8px; transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .btn:active{transform:translateY(1px);}
+  .btn-teal{background:var(--teal); color:#fff;}
+  .btn-teal:hover{box-shadow:0 4px 14px rgba(14,142,134,0.35);}
+  .btn-outline{background:var(--card); color:var(--ink); border:1px solid var(--line);}
+  .btn-outline:hover{border-color:var(--teal); color:var(--teal);}
+  .btn-danger-outline{background:var(--card);color:var(--absent);border:1px solid var(--line);}
+  .btn-danger-outline:hover{background:var(--absent-soft);}
+  .btn-sm{padding:6px 10px;font-size:12px;border-radius:6px;}
+
+  /* ---------- Upload / setup ---------- */
+  .dropzone{
+    border:1.5px dashed var(--line-strong); border-radius:12px; padding:26px; text-align:center;
+    background:var(--paper); cursor:pointer; transition:border-color .15s;
+  }
+  .dropzone:hover{border-color:var(--teal);}
+  .dropzone input{display:none;}
+  .dropzone .icon{font-size:26px; margin-bottom:6px;}
+  .col-map-note{
+    background:var(--teal-soft); border:1px solid var(--line); border-radius:10px; padding:12px 14px;
+    font-size:12.5px; color:var(--ink); margin-top:14px; line-height:1.6;
+  }
+
+  /* ---------- Org chart ---------- */
+  .org-lead{display:flex; justify-content:center; margin-bottom:6px;}
+  .org-card{
+    background:var(--navy); color:#fff; border-radius:12px; padding:14px 22px; text-align:center;
+    min-width:220px;
+  }
+  .org-card .role-tag{font-family:'JetBrains Mono';font-size:10px; letter-spacing:1.2px; text-transform:uppercase; opacity:0.7;}
+  .org-card .name{font-family:'Sora'; font-weight:700; font-size:14.5px; margin-top:3px;}
+  .org-card .shift{font-size:11.5px; color:#C7CCE0; margin-top:2px;}
+  .org-connector{width:2px; height:22px; background:var(--line); margin:0 auto;}
+  .org-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:16px; margin-top:16px;}
+  .spec-branch{border-top:2px solid var(--teal); padding-top:14px;}
+  .spec-card{
+    background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px;
+    cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:8px;
+  }
+  .spec-card:hover{border-color:var(--teal);}
+  .spec-card .name{font-weight:700; font-size:13.5px;}
+  .spec-card .shift-tag{font-size:11px; color:var(--ink-soft); margin-top:1px;}
+  .spec-card .count{
+    background:var(--teal-soft); color:var(--teal); font-family:'JetBrains Mono'; font-size:11px;
+    padding:3px 8px; border-radius:20px; font-weight:600; white-space:nowrap;
+  }
+  .chevron{transition:transform .15s; font-size:11px; color:var(--ink-soft);}
+  .spec-branch.open .chevron{transform:rotate(90deg);}
+  .analyst-list{list-style:none; margin:10px 0 0; padding:0; display:none;}
+  .spec-branch.open .analyst-list{display:block;}
+  .analyst-list li{
+    display:flex; justify-content:space-between; gap:8px; padding:8px 10px; font-size:12.5px;
+    border-left:2px solid var(--line); margin-left:8px; padding-left:12px;
+  }
+  .analyst-list li:hover{border-left-color:var(--teal);}
+  .analyst-list .shift-tag{color:var(--ink-soft); font-size:11px; white-space:nowrap;}
+
+  /* ---------- Attendance ---------- */
+  .toolbar{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:16px;}
+  .toolbar input[type="date"], .toolbar input[type="search"]{
+    border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-family:'Inter'; font-size:13px;
+    background:var(--card); color:var(--ink);
+  }
+  .toolbar input[type="search"]{flex:1; min-width:160px;}
+  .summary-bar{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px;}
+  .chip{
+    font-family:'JetBrains Mono'; font-size:11.5px; font-weight:600; padding:6px 11px; border-radius:20px;
+    display:flex; gap:6px; align-items:center;
+  }
+  .dot{width:7px;height:7px;border-radius:50%;}
+
+  .group-label{
+    font-family:'JetBrains Mono'; font-size:11px; text-transform:uppercase; letter-spacing:1px;
+    color:var(--ink-soft); margin:22px 0 10px; display:flex; align-items:center; gap:8px;
+  }
+  .group-label::after{content:""; flex:1; height:1px; background:var(--line);}
+
+  .emp-card{border:1px solid var(--line); border-radius:10px; margin-bottom:10px; background:var(--card); overflow:hidden;}
+  .emp-card.is-analyst{margin-left:20px; width:calc(100% - 20px);}
+  .att-row{
+    display:grid; grid-template-columns:1.6fr 1.1fr 1.3fr; gap:14px; align-items:center;
+    padding:12px 14px; background:var(--card);
+  }
+  .att-row .emp-name{font-weight:700; font-size:13.5px;}
+  .att-row .emp-shift{font-size:11.5px; color:var(--ink-soft); margin-top:1px;}
+  .working-day-tag{
+    font-size:10.5px; color:var(--teal); margin-top:3px; font-family:'JetBrains Mono'; font-weight:600;
+  }
+  select.status-select{
+    width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-family:'Inter';
+    font-size:12.5px; font-weight:600; cursor:pointer; background:var(--card); color:var(--ink);
+  }
+  .extra-field{display:flex; flex-direction:column; gap:4px;}
+  .extra-field label{font-size:10.5px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.5px;}
+  .extra-field input{
+    border:1px solid var(--line); border-radius:8px; padding:7px 9px; font-family:'JetBrains Mono'; font-size:12px;
+    background:var(--card); color:var(--ink);
+  }
+  .extra-field input[readonly]{background:var(--paper); color:var(--ink-soft);}
+  .saved-tick{font-size:10.5px; color:var(--present); opacity:0; transition:opacity .3s;}
+  .saved-tick.show{opacity:1;}
+
+  .perf-strip{
+    display:flex; gap:14px; flex-wrap:wrap; padding:10px 14px 14px; background:var(--paper);
+    border-top:1px dashed var(--line);
+  }
+  .perf-field label{font-size:9.5px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.4px; display:block; margin-bottom:3px;}
+  .perf-field input{
+    width:104px; padding:6px 8px; border:1px solid var(--line); border-radius:6px;
+    font-family:'JetBrains Mono'; font-size:12px; background:var(--card); color:var(--ink);
+  }
+  .perf-field.computed input{background:var(--teal-soft); color:var(--teal); font-weight:700; border-color:var(--line);}
+  .perf-field.gap-met input{background:var(--present-soft); color:var(--present); font-weight:700; border-color:var(--line);}
+  .perf-field.gap-pending input{background:var(--halfleave-soft); color:var(--halfleave); font-weight:700; border-color:var(--line);}
+  .perf-tag{
+    font-family:'JetBrains Mono'; font-size:9.5px; text-transform:uppercase; color:var(--ink-soft);
+    align-self:center; letter-spacing:0.6px;
+  }
+
+  /* ---------- Weekend + lock states ---------- */
+  .emp-card.is-weekend{background:var(--weekend-row); border-color:var(--line-strong);}
+  .emp-card.is-weekend .att-row{background:var(--weekend-row);}
+  .emp-card.is-weekend .perf-strip{background:var(--weekend-row-strip);}
+  .emp-card.is-locked{opacity:0.72;}
+  .locked-note{
+    font-size:10.5px; color:var(--ink-soft); font-style:italic; background:var(--paper);
+    border:1px solid var(--line); padding:4px 9px; border-radius:20px; white-space:nowrap;
+  }
+  select:disabled, input:disabled{background:var(--disabled-bg) !important; color:var(--disabled-text) !important; cursor:not-allowed;}
+
+  @media (max-width: 720px){
+    .att-row{grid-template-columns:1fr; align-items:stretch;}
+  }
+
+  /* ---------- Leave tracker ---------- */
+  .leave-form{display:grid; grid-template-columns:1.3fr 1.3fr 1fr; gap:14px;}
+  .field label{font-size:11.5px; font-weight:600; color:var(--ink-soft); display:block; margin-bottom:5px;}
+  .field select, .field input[type="text"], .field input[type="date"], .field input[type="password"], .field input[type="time"], .field input[type="number"]{
+    width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-family:'Inter'; font-size:13px;
+    background:var(--card); color:var(--ink);
+  }
+  .date-chip-row{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
+  .date-chip{
+    background:var(--teal-soft); color:var(--teal); font-family:'JetBrains Mono'; font-size:11.5px;
+    padding:5px 9px; border-radius:20px; display:flex; align-items:center; gap:6px;
+  }
+  .date-chip button{background:none; border:none; cursor:pointer; color:var(--teal); font-weight:700;}
+  .upload-slot{
+    border:1.5px dashed var(--line-strong); border-radius:10px; padding:14px; text-align:center; cursor:pointer;
+    font-size:12px; color:var(--ink-soft); position:relative;
+  }
+  .upload-slot img{max-height:70px; border-radius:6px; margin-top:6px;}
+  .upload-slot input{display:none;}
+
+  table.leave-table, table.hist-table{width:100%; border-collapse:collapse; margin-top:18px; font-size:12.5px;}
+  table.leave-table th, table.hist-table th{
+    text-align:left; font-family:'JetBrains Mono'; font-size:10.5px; text-transform:uppercase;
+    letter-spacing:0.8px; color:var(--ink-soft); border-bottom:1px solid var(--line); padding:8px 10px; white-space:nowrap;
+  }
+  table.leave-table td, table.hist-table td{padding:10px; border-bottom:1px solid var(--line); vertical-align:middle;}
+  table.leave-table tr:hover td, table.hist-table tr:hover td{background:var(--paper);}
+  .thumb{width:42px; height:42px; object-fit:cover; border-radius:6px; cursor:pointer; border:1px solid var(--line);}
+  .no-proof{color:var(--ink-soft); font-size:11px; font-style:italic;}
+  .empty-state{text-align:center; padding:40px 20px; color:var(--ink-soft); font-size:13px;}
+  .row-actions{display:flex; gap:6px; flex-wrap:nowrap;}
+
+  /* ---------- History ---------- */
+  .hist-toolbar{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:16px;}
+  .hist-toolbar select, .hist-toolbar input[type="date"]{border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-family:'Inter'; font-size:13px; background:var(--card); color:var(--ink);}
+  .hist-table-wrap{overflow-x:auto;}
+  table.hist-table{min-width:1000px;}
+  .hist-status-pill{padding:3px 8px; border-radius:20px; font-weight:600; font-size:11px;}
+
+  /* ---------- Performance tracker subtabs ---------- */
+  .subtab-row{display:flex; gap:8px; margin-bottom:18px;}
+  .perf-subtab-btn, .perf-role-btn{
+    background:var(--card); border:1px solid var(--line); padding:8px 16px; border-radius:8px; cursor:pointer;
+    font-family:'Inter'; font-weight:600; font-size:12.5px; color:var(--ink-soft);
+  }
+  .perf-subtab-btn.active, .perf-role-btn.active{border-color:var(--teal); color:var(--teal); background:var(--teal-soft);}
+  .perf-subview{display:none;}
+  .perf-subview.active{display:block;}
+  .reco-badge{
+    display:inline-block; font-family:'JetBrains Mono'; font-size:10.5px; font-weight:600; padding:3px 9px;
+    border-radius:20px; margin-left:8px;
+  }
+  .reco-badge.is-manual{background:var(--teal-soft); color:var(--teal);}
+  .reco-badge.is-auto{background:var(--disabled-bg); color:var(--ink-soft);}
+
+  /* ---------- modals ---------- */
+  .modal-bg{
+    position:fixed; inset:0; background:rgba(15,18,30,0.68); display:none; align-items:center; justify-content:center;
+    z-index:50; padding:24px;
+  }
+  .modal-bg.show{display:flex;}
+  .modal-bg img{max-width:90vw; max-height:85vh; border-radius:10px;}
+  .modal-close{position:absolute; top:20px; right:26px; color:#fff; font-size:26px; cursor:pointer; background:none;border:none;}
+  .modal-card{
+    background:var(--card); border-radius:14px; padding:22px; max-width:440px; width:92vw; position:relative;
+    max-height:86vh; overflow-y:auto;
+  }
+  .modal-card h3{margin:0 0 16px; font-size:15.5px;}
+  .modal-card-close{position:absolute; top:14px; right:14px; background:none; border:none; font-size:18px; cursor:pointer; color:var(--ink-soft);}
+  .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:18px;}
+
+  .toast{
+    position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--navy);
+    color:#fff; padding:11px 20px; border-radius:10px; font-size:13px; opacity:0; transition:all .25s ease;
+    pointer-events:none; z-index:60;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<header class="app-head">
+  <div style="display:flex; align-items:center; gap:14px;">
+    <button class="hamburger-btn" id="hamburgerBtn" title="Toggle menu">☰</button>
+    <div class="brand">
+      <div class="mark">TS</div>
+      <div>
+        <h1>Team Suvradeb Leave &amp; Attendance Tracker</h1>
+        <div class="sub" id="teamSummaryLine">Loading team…</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <nav class="side-nav">
+      <button data-view="org" class="side-btn active"><span class="side-icon">🗂️</span><span class="side-label">Team Structure</span></button>
+      <button data-view="attendance" class="side-btn"><span class="side-icon">🗓️</span><span class="side-label">Attendance</span></button>
+      <button data-view="roster" class="side-btn"><span class="side-icon">📋</span><span class="side-label">Roster</span></button>
+      <button data-view="performance" class="side-btn"><span class="side-icon">📈</span><span class="side-label">Performance Tracker</span></button>
+      <button data-view="leave" class="side-btn"><span class="side-icon">🌿</span><span class="side-label">Leave Tracker</span></button>
+      <button data-view="history" class="side-btn"><span class="side-icon">🕘</span><span class="side-label">History</span></button>
+    </nav>
+    <div class="side-themes">
+      <div class="side-themes-label">Theme</div>
+      <div class="theme-row">
+        <button class="theme-btn" data-theme="light" title="Light">☀️</button>
+        <button class="theme-btn" data-theme="dark" title="Dark">🌙</button>
+        <button class="theme-btn" data-theme="warm" title="Warm">🔥</button>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+
+    <!-- ============ SETUP / TEAM FILE UPLOAD (hidden by default) ============ -->
+    <section class="panel" id="setupPanel" style="display:none;">
+      <div class="panel-head">
+        <h2><span class="eyebrow">Data source</span>Load your team from Excel</h2>
+      </div>
+      <label class="dropzone" id="dropzone">
+        <div class="icon">📊</div>
+        <div style="font-weight:600; font-size:13.5px;">Click to upload your team file (.xlsx)</div>
+        <div class="hint" style="margin-top:4px;">Expected columns: Name, Designation, Shift — optional "Reports To" and "App Name" columns will be used if present (App Name is used to match Performance Tracker reconciliation reports).</div>
+        <input type="file" id="fileInput" accept=".xlsx,.xls">
+      </label>
+      <div class="col-map-note">
+        <strong>How hierarchy is detected:</strong> rows with a designation containing "Lead" become the team lead, "Specialist" rows become branch heads, and "Analyst" rows are grouped under the nearest specialist above them in the sheet (or matched by name if a Reports To / Manager column is present). Re-upload anytime to refresh the whole team.
+      </div>
+      <div style="margin-top:14px; display:flex; gap:10px;">
+        <button class="btn btn-outline btn-sm" id="useSampleBtn">Use the team file already on record</button>
+        <button class="btn btn-danger-outline btn-sm" id="clearRosterBtn">Clear saved team data</button>
+      </div>
+    </section>
+
+    <!-- ============ ORG CHART VIEW ============ -->
+    <section class="view active" id="view-org">
+      <div class="panel">
+        <div class="panel-head">
+          <h2><span class="eyebrow">Structure</span>Team hierarchy</h2>
+          <button class="btn btn-outline btn-sm" id="manageRosterBtn">Manage team file</button>
+        </div>
+        <div id="orgChart"></div>
+      </div>
+    </section>
+
+    <!-- ============ ATTENDANCE VIEW ============ -->
+    <section class="view" id="view-attendance">
+      <div class="panel">
+        <div class="panel-head">
+          <h2><span class="eyebrow">Daily log</span>Attendance tracker</h2>
+        </div>
+        <div class="toolbar">
+          <input type="date" id="attDate">
+          <input type="search" id="attSearch" placeholder="Search by name…">
+        </div>
+        <div class="summary-bar" id="summaryBar"></div>
+        <div id="attendanceList"></div>
+      </div>
+    </section>
+
+    <!-- ============ ROSTER VIEW ============ -->
+    <section class="view" id="view-roster">
+      <div class="panel">
+        <div class="panel-head">
+          <h2><span class="eyebrow">Schedule</span>Roster</h2>
+        </div>
+        <div class="hint" style="margin-bottom:14px;">
+          Upload your roster grid as-is: <strong>dates across the top row</strong> (each a working day), employee <strong>App Names</strong> listed in the cells under those dates, and a <strong>Week-off</strong> column on the right giving each row's designated Roster Off day of the week (e.g. "Tuesday"). For every week the sheet spans, that day-of-week becomes each matched employee's Roster Off date — every other day that week is marked as a Working Day. Both actions below require the admin password.
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+          <button class="btn btn-teal btn-sm" id="uploadRosterBtn">Upload roster (admin)</button>
+          <button class="btn btn-danger-outline btn-sm" id="clearRosterDataBtn">Clear roster data (admin)</button>
+          <input type="file" id="rosterFileInput" accept=".xlsx,.xls,.csv" style="display:none;">
+        </div>
+        <div id="rosterSummary" class="hint"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2><span class="eyebrow">Preview</span>Roster by date</h2>
+        </div>
+        <div class="hist-toolbar"><select id="rosterDateSelect"></select></div>
+        <div class="hist-table-wrap" id="rosterPreviewWrap"></div>
+      </div>
+    </section>
+
+    <!-- ============ PERFORMANCE TRACKER VIEW ============ -->
+    <section class="view" id="view-performance">
+      <div class="panel">
+        <div class="panel-head">
+          <h2><span class="eyebrow">Analytics</span>Performance Tracker</h2>
+        </div>
+        <div class="hint" style="margin-bottom:14px;">
+          Built entirely from the uploaded Reconciliation Report for each period — no other data source is used. Columns are read as: <strong>User → App Name</strong>, <strong>Points → Total Points</strong>, <strong>Initial Review → Total IR</strong>, <strong>Reconcile → Total Reco</strong>, <strong>Final Review → FR</strong>. The one derived figure is Average — for Analysts that's Total Points ÷ actual working days, for Specialists it's Total FR ÷ actual working days — with Leave Tracker dates automatically excluded either way.
+        </div>
+        <div class="subtab-row">
+          <button class="perf-subtab-btn active" data-period="daily">Daily</button>
+          <button class="perf-subtab-btn" data-period="weekly">Weekly</button>
+          <button class="perf-subtab-btn" data-period="monthly">Monthly</button>
+        </div>
+
+        <div class="perf-subview active" id="perf-daily">
+          <div class="hist-toolbar">
+            <input type="date" id="perfDailyDate">
+            <button class="btn btn-teal btn-sm" data-reco-upload="daily">Upload Reconciliation Report (admin)</button>
+            <input type="file" class="reco-file-input" data-reco-input="daily" accept=".xlsx,.xls,.csv" style="display:none;">
+          </div>
+          <div class="hint" id="perf-daily-status" style="margin-bottom:10px;"></div>
+          <div class="subtab-row" style="margin-bottom:12px;">
+            <button class="perf-role-btn active" data-period="daily" data-role="analyst">Analysts</button>
+            <button class="perf-role-btn" data-period="daily" data-role="specialist">Specialists</button>
+          </div>
+          <div class="hist-table-wrap" id="perf-daily-table"></div>
+        </div>
+
+        <div class="perf-subview" id="perf-weekly">
+          <div class="hist-toolbar">
+            <input type="date" id="perfWeeklyDate">
+            <span class="hint">Pick any date — shows that Mon–Sun week</span>
+            <button class="btn btn-teal btn-sm" data-reco-upload="weekly">Upload Reconciliation Report (admin)</button>
+            <input type="file" class="reco-file-input" data-reco-input="weekly" accept=".xlsx,.xls,.csv" style="display:none;">
+          </div>
+          <div class="hint" id="perf-weekly-status" style="margin-bottom:10px;"></div>
+          <div class="subtab-row" style="margin-bottom:12px;">
+            <button class="perf-role-btn active" data-period="weekly" data-role="analyst">Analysts</button>
+            <button class="perf-role-btn" data-period="weekly" data-role="specialist">Specialists</button>
+          </div>
+          <div class="hist-table-wrap" id="perf-weekly-table"></div>
+        </div>
+
+        <div class="perf-subview" id="perf-monthly">
+          <div class="hist-toolbar">
+            <input type="date" id="perfMonthlyDate">
+            <span class="hint">Pick any date — shows that full calendar month</span>
+            <button class="btn btn-teal btn-sm" data-reco-upload="monthly">Upload Reconciliation Report (admin)</button>
+            <input type="file" class="reco-file-input" data-reco-input="monthly" accept=".xlsx,.xls,.csv" style="display:none;">
+          </div>
+          <div class="hint" id="perf-monthly-status" style="margin-bottom:10px;"></div>
+          <div class="subtab-row" style="margin-bottom:12px;">
+            <button class="perf-role-btn active" data-period="monthly" data-role="analyst">Analysts</button>
+            <button class="perf-role-btn" data-period="monthly" data-role="specialist">Specialists</button>
+          </div>
+          <div class="hist-table-wrap" id="perf-monthly-table"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ LEAVE TRACKER VIEW ============ -->
+    <section class="view" id="view-leave">
+      <div class="panel">
+        <div class="panel-head">
+          <h2><span class="eyebrow">Records</span>Log a leave</h2>
+        </div>
+        <div class="leave-form">
+          <div class="field">
+            <label>Employee</label>
+            <select id="leaveEmployee"></select>
+          </div>
+          <div class="field">
+            <label>Leave type <span style="font-weight:400;color:var(--ink-soft);">(optional)</span></label>
+            <select id="leaveType">
+              <option value="">— none specified —</option>
+              <option>Sick Leave</option>
+              <option>Casual Leave</option>
+              <option>Emergency Leave</option>
+              <option>Half Day</option>
+              <option>Unpaid Leave</option>
+              <option value="__other">Other…</option>
+            </select>
+            <input type="text" id="leaveTypeOther" placeholder="Describe leave type" style="display:none;margin-top:6px;">
+          </div>
+          <div class="field">
+            <label>Add leave date(s)</label>
+            <div style="display:flex; gap:6px;">
+              <input type="date" id="leaveDateInput" style="flex:1;">
+              <button class="btn btn-outline btn-sm" id="addDateBtn" type="button">Add</button>
+            </div>
+            <div class="date-chip-row" id="dateChipRow"></div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;">
+          <label style="font-size:11.5px; font-weight:600; color:var(--ink-soft); display:block; margin-bottom:6px;">Leave request screenshot <span style="font-weight:400;">(optional)</span></label>
+          <label class="upload-slot" id="screenshotSlot">
+            <span id="screenshotLabel">Click to attach a screenshot</span>
+            <input type="file" id="screenshotInput" accept="image/*">
+          </label>
+        </div>
+
+        <div style="margin-top:18px; display:flex; align-items:center; gap:14px;">
+          <button class="btn btn-teal" id="submitLeaveBtn">Save leave record</button>
+          <span class="hint">Every record is kept permanently, and its dates automatically mark the employee <strong>On Leave</strong> on the Attendance sheet. View the full log anytime in the <strong>History</strong> tab.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ HISTORY VIEW ============ -->
+    <section class="view" id="view-history">
+      <div class="panel">
+        <div class="panel-head">
+          <h2><span class="eyebrow">Archive</span>Attendance &amp; performance history</h2>
+        </div>
+        <div class="hint" style="margin-bottom:14px;">The current sheet automatically rolls over to a fresh day at <strong>8:30 AM Bangladesh time</strong>. Everything before that moment stays here, forever, by date. Editing or deleting a record requires the admin password.</div>
+        <div class="hist-toolbar">
+          <input type="date" id="histDateSelect" list="histKnownDates">
+          <datalist id="histKnownDates"></datalist>
+          <span class="hint" id="histDateHint"></span>
+        </div>
+        <div class="hist-table-wrap" id="histAttWrap"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2><span class="eyebrow">Archive</span>Leave history</h2>
+        </div>
+        <div class="hist-toolbar">
+          <input type="date" id="leaveHistorySearchDate">
+          <button class="btn btn-outline btn-sm" id="leaveHistoryClearSearch">Clear</button>
+        </div>
+        <div id="leaveTableWrap"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="modal-bg" id="imgModal">
+  <button class="modal-close" id="imgModalClose">✕</button>
+  <img id="imgModalImg" src="">
+</div>
+
+<div class="modal-bg" id="genericModal">
+  <div class="modal-card">
+    <button class="modal-card-close" id="genericModalClose">✕</button>
+    <h3 id="genericModalTitle">Edit</h3>
+    <div id="genericModalBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-sm" id="genericModalCancel">Cancel</button>
+      <button class="btn btn-teal btn-sm" id="genericModalSave">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="adminModal">
+  <div class="modal-card" style="max-width:340px;">
+    <button class="modal-card-close" id="adminModalClose">✕</button>
+    <h3>Admin password required</h3>
+    <p class="hint" id="adminModalLabel" style="margin-bottom:12px;"></p>
+    <div class="field">
+      <input type="password" id="adminPasswordInput" placeholder="Enter admin password" autocomplete="off">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-sm" id="adminModalCancel">Cancel</button>
+      <button class="btn btn-teal btn-sm" id="adminModalConfirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================================================================
+   CONFIG / CONSTANTS
+=================================================================== */
+const STATUS_OPTIONS = ["Present","Absent","Roster Off","Weekend","1st Half Leave","Late Join","On Leave"];
+const STATUS_KEY = {
+  "Present":"present","Absent":"absent","Roster Off":"rosteroff",
+  "Weekend":"weekend","1st Half Leave":"halfleave","Late Join":"latejoin","On Leave":"onleave"
+};
+const AUTO_STATUSES = ["Weekend","Roster Off","On Leave"]; // pre-determined, never lock-gated
+const ANALYST_POINT_TARGET = 400;
+const SPECIALIST_FR_TARGET = 180;
+const ADMIN_PASSWORD = "885432"; // never rendered anywhere in the UI — compared only in memory
+
+const DEFAULT_EMPLOYEES = [
+  {id:"e0", name:"Suvradeb Samadder", shift:"Mon-Fri", role:"lead", managerId:null, appName:"suvradebsamadder"},
+  {id:"e1", name:"Sanjida Hossain Ria", shift:"Sat-Wed", role:"specialist", managerId:"e0", appName:"sanjidahossain"},
+  {id:"e2", name:"Srabani Bhowmik", shift:"Mon-Fri", role:"specialist", managerId:"e0", appName:"srabani"},
+  {id:"e3", name:"Tanjila Chowdhury", shift:"Mon-Fri", role:"analyst", managerId:"e2", appName:"tanjilachowdhury"},
+  {id:"e4", name:"Shadia Islam", shift:"Mon-Fri", role:"analyst", managerId:"e2", appName:"shadia"},
+  {id:"e5", name:"Gitosree Sarkar", shift:"Mon-Fri", role:"analyst", managerId:"e2", appName:"Gitosree Sarkar"},
+  {id:"e6", name:"Sadia Anjum", shift:"Mon-Fri", role:"analyst", managerId:"e2", appName:"sadiaanjum"},
+  {id:"e7", name:"Md. Ifta Khairul", shift:"Sat-Wed", role:"analyst", managerId:"e2", appName:"Khairul"},
+  {id:"e8", name:"Shanjida Nasrin", shift:"Mon-Fri", role:"specialist", managerId:"e0", appName:"shanjida"},
+  {id:"e9", name:"Fatema Akter Sumi", shift:"Mon-Fri", role:"specialist", managerId:"e0", appName:"fatemaakter"},
+  {id:"e10", name:"Nasrin Akter Nipa", shift:"Mon-Fri", role:"analyst", managerId:"e9", appName:"Nipa"},
+  {id:"e11", name:"Monira Jahan Shanta", shift:"Mon-Fri", role:"analyst", managerId:"e9", appName:"monira"},
+  {id:"e12", name:"Tania Akter", shift:"Mon-Fri", role:"analyst", managerId:"e9", appName:"taniaakter"},
+  {id:"e13", name:"Md. Injamamul Kabir Hemal", shift:"Mon-Fri", role:"analyst", managerId:"e9", appName:"Hemal"},
+  {id:"e14", name:"Dilara Akter", shift:"Sat-Wed", role:"analyst", managerId:"e9", appName:"Dilara"},
+  {id:"e15", name:"Nishi Akter", shift:"Mon-Fri", role:"specialist", managerId:"e0", appName:"nishiakter"},
+  {id:"e16", name:"Al Amin", shift:"Sat-Wed", role:"analyst", managerId:"e15", appName:"mdalamin"},
+  {id:"e17", name:"Adhara Tasnim", shift:"Sat-Wed", role:"analyst", managerId:"e15", appName:"Adhara"},
+  {id:"e18", name:"Sagufta Ahmed Keya", shift:"Sat-Wed", role:"analyst", managerId:"e15", appName:"keya"},
+  {id:"e19", name:"Jakia Afroz", shift:"Mon-Fri", role:"analyst", managerId:"e15", appName:"Jakia"},
+  {id:"e20", name:"Mst. Sabrina Yesmin", shift:"Mon-Fri", role:"analyst", managerId:"e15", appName:"sabrina"}
+];
+
+let employees = [];
+let attendanceCache = {};
+let currentLeaveDates = [];
+let currentScreenshot = null;
+let attendanceDatesIndex = [];
+let activeBusinessDate = null;
+let isViewingCurrentDay = true;
+let rosterMap = {}; // `${empId}|${date}` -> {label, isOff}
+let leaveByDateMap = {}; // date -> Set(employeeId)
+let modalLeaveDates = [];
+let modalScreenshot = null;
+let modalSaveHandler = null;
+let perfActiveRole = {daily:'analyst', weekly:'analyst', monthly:'analyst'};
+
+/* ===================================================================
+   STORAGE HELPERS — talk to the server-side /.netlify/functions/store API
+   (Netlify Blobs), which is the shared, multi-user storage backing this
+   app. Every call goes through here so nothing ever touches the browser's
+   local/session storage.
+=================================================================== */
+const STORE_ENDPOINT = '/.netlify/functions/store';
+
+async function storeGet(key){
+  try{
+    const res = await fetch(`${STORE_ENDPOINT}?key=${encodeURIComponent(key)}`, {
+      method: 'GET',
+      credentials: 'same-origin',
+    });
+    if(!res.ok) return null;
+    const body = await res.json();
+    return body && body.value !== undefined ? body.value : null;
+  }catch(e){ console.error('storeGet failed', key, e); return null; }
+}
+
+async function storeSet(key, value, isProtected){
+  try{
+    const res = await fetch(STORE_ENDPOINT, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({key, value, protected: !!isProtected}),
+    });
+    return res.ok;
+  }catch(e){ console.error('storeSet failed', key, e); return false; }
+}
+
+async function storeDelete(key, isProtected){
+  try{
+    const res = await fetch(STORE_ENDPOINT, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({key, protected: !!isProtected}),
+    });
+    return res.ok;
+  }catch(e){ console.error('storeDelete failed', key, e); return false; }
+}
+
+/**
+ * Atomic partial update: shallow-merges `patch` into whatever JSON object
+ * currently lives at `key` on the server (server-side read-modify-write
+ * with conflict retry — see netlify/functions/store.js). Use this instead
+ * of storeSet whenever multiple users might be updating *different* parts
+ * of the same shared object at the same time (e.g. different employees'
+ * attendance for the same date), so one user's save can never overwrite
+ * another user's concurrent save. A `null` value in `patch` deletes that
+ * field. Returns the authoritative merged object from the server (or null
+ * on failure), so the caller can sync its local cache with what actually
+ * ended up stored.
+ */
+async function storeMerge(key, patch, isProtected){
+  try{
+    const res = await fetch(STORE_ENDPOINT, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({key, merge: patch, protected: !!isProtected}),
+    });
+    if(!res.ok) return null;
+    const body = await res.json();
+    return body && body.value !== undefined ? body.value : null;
+  }catch(e){ console.error('storeMerge failed', key, e); return null; }
+}
+
+/** Atomic partial update, one level deeper than storeMerge: shallow-merges
+ * `fieldPatchesByRecordId` as `{ recordId: { field: value, field2: null } | null }`
+ * into whatever object is stored at `key`, merging each named record's
+ * FIELDS individually rather than replacing the whole record. This is what
+ * lets two different users edit different fields of the *same* record
+ * (e.g. one browser changing an employee's attendance status while another
+ * saves that same employee's performance numbers) without either
+ * overwriting the other's fields. A `null` at the top level for a record id
+ * deletes that whole record. Returns the authoritative merged object.
+ */
+async function storeFieldMerge(key, fieldPatchesByRecordId, isProtected){
+  try{
+    const res = await fetch(STORE_ENDPOINT, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({key, fieldMerge: fieldPatchesByRecordId, protected: !!isProtected}),
+    });
+    if(!res.ok) return null;
+    const body = await res.json();
+    return body && body.value !== undefined ? body.value : null;
+  }catch(e){ console.error('storeFieldMerge failed', key, e); return null; }
+}
+
+/** Atomic "ensure this value is present in the array stored at key". */
+async function storeArrayAdd(key, value){
+  try{
+    const res = await fetch(STORE_ENDPOINT, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({key, arrayAdd: value}),
+    });
+    if(!res.ok) return null;
+    const body = await res.json();
+    return body && body.value !== undefined ? body.value : null;
+  }catch(e){ console.error('storeArrayAdd failed', key, e); return null; }
+}
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+function esc(s){
+  return String(s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function todayStr(){
+  const d = new Date();
+  const off = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - off*60000);
+  return local.toISOString().slice(0,10);
+}
+function numOrEmpty(v){ return v==='' || v===undefined || v===null ? '' : Number(v); }
+function cap(s){ return s ? s.charAt(0).toUpperCase()+s.slice(1) : ''; }
+function fmtNum(v){ return (v===undefined || v===null || v==='') ? '—' : v; }
+
+/* ---- Business-day logic: the working day rolls over at 8:30 AM Bangladesh time ---- */
+function pad2(n){ return String(n).padStart(2,'0'); }
+function bdtNowParts(){
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone:'Asia/Dhaka', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false
+  });
+  const obj = {};
+  fmt.formatToParts(new Date()).forEach(p=>{ if(p.type!=='literal') obj[p.type]=p.value; });
+  return obj;
+}
+function businessDateStr(){
+  const p = bdtNowParts();
+  const hour = +p.hour, minute = +p.minute;
+  let y=+p.year, mo=+p.month, d=+p.day;
+  if(hour < 8 || (hour===8 && minute < 30)){
+    const dt = new Date(Date.UTC(y, mo-1, d));
+    dt.setUTCDate(dt.getUTCDate()-1);
+    y = dt.getUTCFullYear(); mo = dt.getUTCMonth()+1; d = dt.getUTCDate();
+  }
+  return `${y}-${pad2(mo)}-${pad2(d)}`;
+}
+function dhakaTodayCalendarStr(){
+  const p = bdtNowParts();
+  return `${p.year}-${p.month}-${p.day}`;
+}
+function isBeforeUnlockTime(){
+  const p = bdtNowParts();
+  const hour = +p.hour, minute = +p.minute;
+  return hour < 8 || (hour===8 && minute < 30);
+}
+function isDateLocked(dateStr){
+  const todayCal = dhakaTodayCalendarStr();
+  if(dateStr > todayCal) return true;
+  if(dateStr === todayCal) return isBeforeUnlockTime();
+  return false;
+}
+function formatDateLabel(dateStr){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m-1, d));
+  return dt.toLocaleDateString('en-US', {weekday:'short', year:'numeric', month:'short', day:'numeric', timeZone:'UTC'});
+}
+function dateStrFromUTC(dt){
+  return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth()+1)}-${pad2(dt.getUTCDate())}`;
+}
+function mondayOfDate(dateStr){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m-1, d));
+  const dow = dt.getUTCDay(); // 0=Sun..6=Sat
+  const diffToMonday = (dow===0) ? -6 : (1-dow);
+  dt.setUTCDate(dt.getUTCDate()+diffToMonday);
+  return dt;
+}
+function datesForWeekContaining(dateStr){
+  const monday = mondayOfDate(dateStr);
+  const dates = [];
+  for(let i=0;i<7;i++){
+    const d = new Date(monday);
+    d.setUTCDate(monday.getUTCDate()+i);
+    dates.push(dateStrFromUTC(d));
+  }
+  return dates;
+}
+function datesForMonthContaining(dateStr){
+  const [y,m] = dateStr.split('-').map(Number);
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const dates = [];
+  for(let d=1; d<=daysInMonth; d++) dates.push(`${y}-${pad2(m)}-${pad2(d)}`);
+  return dates;
+}
+async function ensureDateInIndex(date){
+  if(attendanceDatesIndex.includes(date)) return; // already known locally — no need to re-check the server every save
+  attendanceDatesIndex.push(date);
+  attendanceDatesIndex.sort();
+  // Atomic add on the server so two users adding different dates at the
+  // same time can't drop one of them; sync our local index with whatever
+  // the server says is authoritative.
+  const serverArr = await storeArrayAdd('attendance_dates', date);
+  if(Array.isArray(serverArr)) attendanceDatesIndex = serverArr;
+}
+
+/**
+ * Save one or more employees' attendance data for `date` using a
+ * FIELD-LEVEL merge — only the specific fields that actually changed are
+ * sent, and only for the specific employee(s) that changed. This is what
+ * prevents two users editing different employees (or even different
+ * fields of the *same* employee — e.g. one browser changing status while
+ * another is mid-save on that same employee's performance numbers) from
+ * overwriting each other.
+ *
+ * `fieldPatchesByEmpId` shape: { empId: { field: value, field2: null }, empId2: null }
+ * A `null` field value deletes that field; a `null` at the empId level
+ * deletes that employee's entire record for the date.
+ */
+async function saveAttendanceRecord(date, fieldPatchesByEmpId){
+  if(!fieldPatchesByEmpId || Object.keys(fieldPatchesByEmpId).length === 0) return;
+  if(!attendanceCache[date]) attendanceCache[date] = {};
+
+  const merged = await storeFieldMerge('attendance:'+date, fieldPatchesByEmpId);
+  if(merged && typeof merged === 'object'){
+    // Adopt the server's authoritative merged result so any change another
+    // user made to a *different* employee (or a different field of the
+    // same employee) in the meantime isn't lost from our local cache.
+    attendanceCache[date] = merged;
+  } else {
+    // Extremely unlikely (would need 8 straight conflicting writes to the
+    // exact same date), but never fail silently — the user's edit is still
+    // sitting in attendanceCache locally, but wasn't confirmed saved.
+    toast('Could not save just now — please try the edit again. Check your connection if this repeats.');
+  }
+  await ensureDateInIndex(date);
+}
+async function checkBusinessDayRollover(){
+  const bd = businessDateStr();
+  if(activeBusinessDate === null){ activeBusinessDate = bd; return; }
+  if(bd !== activeBusinessDate){
+    const previous = activeBusinessDate;
+    activeBusinessDate = bd;
+    await ensureDateInIndex(previous);
+    if(isViewingCurrentDay){
+      document.getElementById('attDate').value = bd;
+      await loadAndRenderAttendance();
+      toast(`New day started at 8:30 AM (Dhaka) — ${formatDateLabel(previous)} was saved to History.`);
+    }
+    renderHistoryDateOptions();
+  }
+}
+
+/* ---- Weekend detection from each employee's shift range (e.g. "Sat-Wed", "Mon-Fri") ---- */
+const DAY_ABBR = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const shiftDaysCache = {};
+function parseShiftDays(shift){
+  if(!shift) return null;
+  if(shiftDaysCache[shift]) return shiftDaysCache[shift];
+  const parts = shift.split('-');
+  if(parts.length!==2) return null;
+  const startAbbr = parts[0].trim().slice(0,3).toLowerCase();
+  const endAbbr = parts[1].trim().slice(0,3).toLowerCase();
+  const startIdx = DAY_ABBR.findIndex(d=>d.toLowerCase()===startAbbr);
+  const endIdx = DAY_ABBR.findIndex(d=>d.toLowerCase()===endAbbr);
+  if(startIdx===-1 || endIdx===-1) return null;
+  const working = new Set();
+  let idx = startIdx, guard = 0;
+  while(guard<7){
+    working.add(idx);
+    if(idx===endIdx) break;
+    idx = (idx+1)%7;
+    guard++;
+  }
+  const weekend = new Set();
+  for(let i=0;i<7;i++) if(!working.has(i)) weekend.add(i);
+  const result = {working, weekend};
+  shiftDaysCache[shift] = result;
+  return result;
+}
+function dayIndexForDateStr(dateStr){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m-1, d)).getUTCDay();
+}
+function isWeekendForEmployee(emp, dateStr){
+  const parsed = parseShiftDays(emp.shift);
+  if(!parsed) return false;
+  return parsed.weekend.has(dayIndexForDateStr(dateStr));
+}
+
+/* ---- Daily performance targets ---- */
+function round1(x){ return Math.round(x*10)/10; }
+function computePointGap(totalPoints){ return round1(ANALYST_POINT_TARGET - (Number(totalPoints)||0)); }
+function computeFrGap(totalFr){ return round1(SPECIALIST_FR_TARGET - (Number(totalFr)||0)); }
+function gapClass(gap){ return gap<=0 ? 'gap-met' : 'gap-pending'; }
+function computeFrViaPoints(totalPoints){ return round1((Number(totalPoints)||0)/2); }
+function computeTotalFr(frCount, frViaPoints){ return round1((Number(frCount)||0)+(Number(frViaPoints)||0)); }
+
+/* ===================================================================
+   ADMIN PASSWORD GATE
+=================================================================== */
+function requireAdminAuth(actionLabel){
+  return new Promise(resolve=>{
+    const modal = document.getElementById('adminModal');
+    document.getElementById('adminModalLabel').textContent = `Enter the admin password to ${actionLabel}.`;
+    const input = document.getElementById('adminPasswordInput');
+    input.value = '';
+    modal.classList.add('show');
+    input.focus();
+
+    const confirmBtn = document.getElementById('adminModalConfirm');
+    const cancelBtn = document.getElementById('adminModalCancel');
+    const closeBtn = document.getElementById('adminModalClose');
+
+    function cleanup(result){
+      modal.classList.remove('show');
+      confirmBtn.removeEventListener('click', onConfirm);
+      cancelBtn.removeEventListener('click', onCancel);
+      closeBtn.removeEventListener('click', onCancel);
+      input.removeEventListener('keydown', onKey);
+      resolve(result);
+    }
+    function onConfirm(){
+      if(input.value === ADMIN_PASSWORD){ cleanup(true); }
+      else{ toast('Incorrect password.'); input.value=''; input.focus(); }
+    }
+    function onCancel(){ cleanup(false); }
+    function onKey(e){ if(e.key==='Enter') onConfirm(); if(e.key==='Escape') onCancel(); }
+
+    confirmBtn.addEventListener('click', onConfirm);
+    cancelBtn.addEventListener('click', onCancel);
+    closeBtn.addEventListener('click', onCancel);
+    input.addEventListener('keydown', onKey);
+  });
+}
+
+/* ===================================================================
+   GENERIC MODAL (used for history edit forms)
+=================================================================== */
+function openGenericModal(title, bodyHtml, onSave, onRender){
+  document.getElementById('genericModalTitle').textContent = title;
+  document.getElementById('genericModalBody').innerHTML = bodyHtml;
+  modalSaveHandler = onSave;
+  document.getElementById('genericModal').classList.add('show');
+  if(onRender) onRender();
+}
+function closeGenericModal(){
+  document.getElementById('genericModal').classList.remove('show');
+  modalSaveHandler = null;
+}
+
+/* ===================================================================
+   INIT
+=================================================================== */
+async function init(){
+  const savedTheme = await storeGet('ui_theme');
+  const theme = savedTheme || 'light';
+  document.documentElement.setAttribute('data-theme', theme);
+
+  const saved = await storeGet('employees');
+  if(saved){
+    try{ employees = JSON.parse(saved); }catch(e){ employees = DEFAULT_EMPLOYEES; }
+  } else {
+    employees = DEFAULT_EMPLOYEES;
+    await storeSet('employees', JSON.stringify(employees));
+  }
+
+  const rosterRaw = await storeGet('roster_map');
+  rosterMap = rosterRaw ? JSON.parse(rosterRaw) : {};
+
+  const datesRaw = await storeGet('attendance_dates');
+  attendanceDatesIndex = datesRaw ? JSON.parse(datesRaw) : [];
+
+  await rebuildLeaveByDateMap();
+
+  activeBusinessDate = businessDateStr();
+  document.getElementById('attDate').value = activeBusinessDate;
+
+  if(window.innerWidth < 800) document.body.classList.add('sidebar-collapsed');
+
+  renderAll();
+  wireEvents();
+  setInterval(checkBusinessDayRollover, 60*1000);
+  setInterval(pollAttendanceUpdates, ATTENDANCE_POLL_MS);
+  window.addEventListener('beforeunload', flushAllPendingPerfSaves);
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState==='hidden') flushAllPendingPerfSaves();
+  });
+
+  document.querySelectorAll('.theme-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.theme===theme);
+  });
+}
+
+/**
+ * Best-effort save of any performance-field edits that are still sitting
+ * in the debounce window (not yet sent to the server) when the user
+ * navigates away, switches tabs, or closes the page. Uses fetch's
+ * `keepalive` flag so the request can complete even after the page starts
+ * unloading.
+ */
+function flushAllPendingPerfSaves(){
+  Object.keys(pendingPerfSaves).forEach(k=>{
+    clearTimeout(pendingPerfSaves[k]);
+    delete pendingPerfSaves[k];
+    const [date, empId] = k.split('|');
+    const patch = buildDirtyFieldPatch(date, empId);
+    if(!patch) return;
+    try{
+      fetch(STORE_ENDPOINT, {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({key:'attendance:'+date, fieldMerge:{[empId]: patch}}),
+      });
+    }catch(e){ /* best effort */ }
+  });
+}
+
+/* ===================================================================
+   MULTI-USER SYNC — light background poll so a change another person
+   makes to the currently-viewed date shows up here without needing a
+   manual refresh, WITHOUT ever disturbing fields this browser's user is
+   actively typing into (see renderSingleEmployeeCard's skipIfFocused).
+=================================================================== */
+const ATTENDANCE_POLL_MS = 25000;
+let pollInFlight = false;
+
+async function pollAttendanceUpdates(){
+  if(pollInFlight) return;
+  if(document.visibilityState === 'hidden') return;
+  const attView = document.getElementById('view-attendance');
+  if(!attView || !attView.classList.contains('active')) return;
+
+  const date = document.getElementById('attDate').value;
+  if(!date) return;
+
+  pollInFlight = true;
+  try{
+    const raw = await storeGet('attendance:'+date);
+    const serverData = raw ? JSON.parse(raw) : {};
+    if(!attendanceCache[date]) attendanceCache[date] = {};
+    const localData = attendanceCache[date];
+
+    const allIds = new Set([...Object.keys(serverData), ...Object.keys(localData)]);
+    allIds.forEach(empId=>{
+      // Don't clobber an edit that's still waiting in the debounce window
+      // for this employee — it'll reconcile itself once that save lands.
+      if(pendingPerfSaves[perfSaveKey(date, empId)]) return;
+
+      const serverRec = serverData[empId];
+      const localRec = localData[empId];
+      if(JSON.stringify(serverRec||null) === JSON.stringify(localRec||null)) return;
+
+      if(serverRec === undefined) delete localData[empId];
+      else localData[empId] = serverRec;
+
+      renderSingleEmployeeCard(empId, true); // skip if the user is actively focused in this card
+    });
+  }catch(e){
+    console.error('pollAttendanceUpdates failed', e);
+  }finally{
+    pollInFlight = false;
+  }
+}
+
+function renderAll(){
+  updateHeaderSummary();
+  renderOrgChart();
+  renderLeaveEmployeeOptions();
+  loadAndRenderAttendance();
+  renderLeaveTable();
+  renderHistoryDateOptions();
+  renderRosterSummary();
+  renderRosterDateOptions();
+  initPerformanceTrackerDefaults();
+}
+
+function updateHeaderSummary(){
+  const specialists = employees.filter(e=>e.role==='specialist').length;
+  const analysts = employees.filter(e=>e.role==='analyst').length;
+  document.getElementById('teamSummaryLine').textContent =
+    `${specialists} Specialists · ${analysts} Analysts · ${employees.length} total`;
+}
+
+/* ===================================================================
+   NAVIGATION / SIDEBAR / THEME WIRING
+=================================================================== */
+function wireEvents(){
+  document.querySelectorAll('.side-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.side-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+      document.getElementById('view-'+btn.dataset.view).classList.add('active');
+    });
+  });
+
+  document.getElementById('hamburgerBtn').addEventListener('click', ()=>{
+    document.body.classList.toggle('sidebar-collapsed');
+  });
+
+  document.querySelectorAll('.theme-btn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const theme = btn.dataset.theme;
+      document.documentElement.setAttribute('data-theme', theme);
+      document.querySelectorAll('.theme-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      await storeSet('ui_theme', theme);
+    });
+  });
+
+  document.getElementById('manageRosterBtn').addEventListener('click', ()=>{
+    const p = document.getElementById('setupPanel');
+    p.style.display = p.style.display === 'none' ? 'block' : 'none';
+    p.scrollIntoView({behavior:'smooth'});
+  });
+
+  document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+  document.getElementById('useSampleBtn').addEventListener('click', async ()=>{
+    employees = DEFAULT_EMPLOYEES;
+    await storeSet('employees', JSON.stringify(employees));
+    renderAll();
+    toast('Loaded the team file already on record.');
+  });
+  document.getElementById('clearRosterBtn').addEventListener('click', async ()=>{
+    if(!confirm('This clears the saved team data and reloads the default. Continue?')) return;
+    await storeDelete('employees');
+    employees = DEFAULT_EMPLOYEES;
+    await storeSet('employees', JSON.stringify(employees));
+    renderAll();
+    toast('Team data reset.');
+  });
+
+  document.getElementById('attDate').addEventListener('change', (e)=>{
+    isViewingCurrentDay = (e.target.value === activeBusinessDate);
+    loadAndRenderAttendance();
+  });
+  document.getElementById('attSearch').addEventListener('input', ()=>renderAttendanceList(attendanceCache[document.getElementById('attDate').value]||{}));
+
+  // Delegated listeners for the attendance list: attached ONCE to the
+  // container instead of re-attached after every render. This is what
+  // lets renderSingleEmployeeCard() swap in a fresh card and have its
+  // inputs "just work" without any per-render wiring step.
+  const attendanceListWrap = document.getElementById('attendanceList');
+  attendanceListWrap.addEventListener('change', (e)=>{
+    if(e.target.matches('.status-select')) onStatusChange(e);
+    else if(e.target.matches('input[data-role="lateTime"]')) onLateTimeChange(e);
+    else if(e.target.matches('.perf-field input[data-field]')) onPerfChange(e);
+  });
+  attendanceListWrap.addEventListener('input', (e)=>{
+    if(e.target.matches('.perf-field input[data-field]')) onPerfInput(e);
+  });
+  document.getElementById('histDateSelect').addEventListener('change', renderHistoryAttendance);
+  document.getElementById('rosterDateSelect').addEventListener('change', renderRosterPreview);
+  document.getElementById('leaveHistorySearchDate').addEventListener('change', renderLeaveTable);
+  document.getElementById('leaveHistoryClearSearch').addEventListener('click', ()=>{
+    document.getElementById('leaveHistorySearchDate').value = '';
+    renderLeaveTable();
+  });
+
+  document.getElementById('addDateBtn').addEventListener('click', addLeaveDateChip);
+  document.getElementById('leaveType').addEventListener('change', (e)=>{
+    document.getElementById('leaveTypeOther').style.display = e.target.value === '__other' ? 'block' : 'none';
+  });
+  document.getElementById('screenshotInput').addEventListener('change', handleScreenshotUpload);
+  document.getElementById('submitLeaveBtn').addEventListener('click', submitLeaveRecord);
+  document.getElementById('imgModalClose').addEventListener('click', ()=>document.getElementById('imgModal').classList.remove('show'));
+  document.getElementById('imgModal').addEventListener('click', (e)=>{ if(e.target.id==='imgModal') e.currentTarget.classList.remove('show'); });
+
+  document.getElementById('genericModalCancel').addEventListener('click', closeGenericModal);
+  document.getElementById('genericModalClose').addEventListener('click', closeGenericModal);
+  document.getElementById('genericModalSave').addEventListener('click', ()=>{ if(modalSaveHandler) modalSaveHandler(); });
+
+  document.getElementById('uploadRosterBtn').addEventListener('click', async ()=>{
+    const ok = await requireAdminAuth('upload a new roster file');
+    if(!ok) return;
+    document.getElementById('rosterFileInput').click();
+  });
+  document.getElementById('rosterFileInput').addEventListener('change', handleRosterUpload);
+  document.getElementById('clearRosterDataBtn').addEventListener('click', async ()=>{
+    const ok = await requireAdminAuth('clear the uploaded roster data');
+    if(!ok) return;
+    rosterMap = {};
+    await storeDelete('roster_map');
+    await storeDelete('roster_meta');
+    renderRosterSummary();
+    renderRosterDateOptions();
+    loadAndRenderAttendance();
+    toast('Roster data cleared.');
+  });
+
+  document.querySelectorAll('.perf-subtab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.perf-subtab-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.perf-subview').forEach(v=>v.classList.remove('active'));
+      document.getElementById('perf-'+btn.dataset.period).classList.add('active');
+    });
+  });
+  document.getElementById('perfDailyDate').addEventListener('change', ()=>renderPerfTab('daily'));
+  document.getElementById('perfWeeklyDate').addEventListener('change', ()=>renderPerfTab('weekly'));
+  document.getElementById('perfMonthlyDate').addEventListener('change', ()=>renderPerfTab('monthly'));
+  document.querySelectorAll('[data-reco-upload]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const period = btn.dataset.recoUpload;
+      const ok = await requireAdminAuth('upload a reconciliation report');
+      if(!ok) return;
+      document.querySelector(`[data-reco-input="${period}"]`).click();
+    });
+  });
+  document.querySelectorAll('.perf-role-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const period = btn.dataset.period;
+      const role = btn.dataset.role;
+      perfActiveRole[period] = role;
+      document.querySelectorAll(`.perf-role-btn[data-period="${period}"]`).forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      renderPerfTab(period);
+    });
+  });
+  document.querySelectorAll('.reco-file-input').forEach(inp=>{
+    inp.addEventListener('change', handleRecoUpload(inp.dataset.recoInput));
+  });
+}
+
+/* ===================================================================
+   TEAM FILE UPLOAD & HIERARCHY PARSING
+=================================================================== */
+function findKey(row, patterns){
+  const keys = Object.keys(row);
+  for(const p of patterns){
+    const k = keys.find(k=>k.toLowerCase().replace(/[^a-z]/g,'').includes(p));
+    if(k) return k;
+  }
+  return null;
+}
+function normalizeRole(designation){
+  const d = (designation||'').toLowerCase();
+  if(d.includes('lead')) return 'lead';
+  if(d.includes('specialist')) return 'specialist';
+  if(d.includes('analyst')) return 'analyst';
+  return 'other';
+}
+function cleanText(v){
+  return (v===undefined||v===null) ? '' : String(v).replace(/\s+/g,' ').trim();
+}
+function cleanShift(v){
+  return cleanText(v).replace(/\s*-\s*/g,'-');
+}
+
+function handleFileUpload(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async (evt)=>{
+    try{
+      const wb = XLSX.read(evt.target.result, {type:'array'});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+      if(!rows.length){ toast('That sheet looks empty.'); return; }
+
+      const nameKey = findKey(rows[0], ['name']);
+      const desigKey = findKey(rows[0], ['designation','role','title']);
+      const shiftKey = findKey(rows[0], ['shift']);
+      const reportsKey = findKey(rows[0], ['reportsto','manager','reportingto','supervisor']);
+      const appNameKey = findKey(rows[0], ['appname','app']);
+
+      if(!nameKey){ toast('Could not find a Name column in that file.'); return; }
+
+      const parsed = rows.map((r,i)=>({
+        id: 'u'+i,
+        name: cleanText(r[nameKey]),
+        shift: cleanShift(shiftKey ? r[shiftKey] : ''),
+        role: normalizeRole(desigKey ? r[desigKey] : ''),
+        managerName: reportsKey ? cleanText(r[reportsKey]) : '',
+        appName: appNameKey ? cleanText(r[appNameKey]) : ''
+      })).filter(p=>p.name);
+
+      let currentLead = null, currentSpecialist = null;
+      parsed.forEach(p=>{
+        if(p.role==='lead'){ currentLead = p; p.managerId = null; }
+        else if(p.role==='specialist'){ p.managerId = currentLead ? currentLead.id : null; currentSpecialist = p; }
+        else if(p.role==='analyst'){
+          if(p.managerName){
+            const match = parsed.find(x=>x.role==='specialist' && x.name.toLowerCase().includes(p.managerName.toLowerCase()));
+            p.managerId = match ? match.id : (currentSpecialist ? currentSpecialist.id : null);
+          } else {
+            p.managerId = currentSpecialist ? currentSpecialist.id : null;
+          }
+        } else {
+          p.managerId = currentSpecialist ? currentSpecialist.id : (currentLead ? currentLead.id : null);
+        }
+      });
+
+      employees = parsed.map(p=>({id:p.id, name:p.name, shift:p.shift, role:p.role, managerId:p.managerId, appName:p.appName||''}));
+      await storeSet('employees', JSON.stringify(employees));
+      renderAll();
+      toast(`Loaded ${employees.length} employees from ${file.name}.`);
+      document.getElementById('setupPanel').style.display = 'none';
+    }catch(err){
+      console.error(err);
+      toast('Could not read that file — please check it is a valid .xlsx export.');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ===================================================================
+   ORG CHART
+=================================================================== */
+function renderOrgChart(){
+  const wrap = document.getElementById('orgChart');
+  const lead = employees.find(e=>e.role==='lead');
+  const specialists = employees.filter(e=>e.role==='specialist');
+  const orphans = employees.filter(e=>e.role==='other' || (e.role==='analyst' && !specialists.find(s=>s.id===e.managerId)));
+
+  let html = '';
+  if(lead){
+    html += `<div class="org-lead"><div class="org-card">
+      <div class="role-tag">Team Lead</div>
+      <div class="name">${esc(lead.name)}</div>
+      <div class="shift">${esc(lead.shift)}</div>
+    </div></div><div class="org-connector"></div>`;
+  }
+
+  html += '<div class="org-grid">';
+  specialists.forEach(sp=>{
+    const analysts = employees.filter(e=>e.role==='analyst' && e.managerId===sp.id);
+    html += `
+      <div class="spec-branch" data-spec="${sp.id}">
+        <div class="spec-card">
+          <div>
+            <div class="name">${esc(sp.name)}</div>
+            <div class="shift-tag">${esc(sp.shift)}</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="count">${analysts.length} analyst${analysts.length===1?'':'s'}</span>
+            <span class="chevron">▶</span>
+          </div>
+        </div>
+        <ul class="analyst-list">
+          ${analysts.map(a=>`<li><span>${esc(a.name)}</span><span class="shift-tag">${esc(a.shift)}</span></li>`).join('') || '<li style="color:var(--ink-soft);">No analysts assigned</li>'}
+        </ul>
+      </div>`;
+  });
+  html += '</div>';
+
+  if(orphans.length){
+    html += `<div class="group-label">Unassigned</div><div class="org-grid">`;
+    orphans.forEach(o=>{
+      html += `<div class="spec-card" style="cursor:default;"><div><div class="name">${esc(o.name)}</div><div class="shift-tag">${esc(o.shift)}</div></div></div>`;
+    });
+    html += '</div>';
+  }
+
+  wrap.innerHTML = html;
+  wrap.querySelectorAll('.spec-branch').forEach(b=>{
+    b.querySelector('.spec-card').addEventListener('click', ()=>b.classList.toggle('open'));
+  });
+}
+
+/* ===================================================================
+   ATTENDANCE
+=================================================================== */
+async function loadAndRenderAttendance(){
+  const date = document.getElementById('attDate').value || todayStr();
+  let data = attendanceCache[date];
+  if(!data){
+    const raw = await storeGet('attendance:'+date);
+    data = raw ? JSON.parse(raw) : {};
+    attendanceCache[date] = data;
+  }
+  const fieldPatchesByEmpId = {};
+
+  // 1) On Leave — from the Leave Tracker (highest priority: explicit human record)
+  const onLeaveSet = leaveByDateMap[date] || new Set();
+  employees.forEach(emp=>{
+    if(onLeaveSet.has(emp.id)){
+      if(!data[emp.id]) data[emp.id] = {};
+      if(!data[emp.id].status){ data[emp.id].status = 'On Leave'; fieldPatchesByEmpId[emp.id] = {status:'On Leave'}; }
+    }
+  });
+
+  // 2) Roster Off — from the uploaded per-date Roster
+  employees.forEach(emp=>{
+    const rEntry = rosterMap[emp.id+'|'+date];
+    if(rEntry && rEntry.isOff){
+      if(!data[emp.id]) data[emp.id] = {};
+      if(!data[emp.id].status){ data[emp.id].status = 'Roster Off'; fieldPatchesByEmpId[emp.id] = {status:'Roster Off'}; }
+    }
+  });
+
+  // 3) Weekend — fallback based on each employee's weekly shift pattern
+  employees.forEach(emp=>{
+    if(isWeekendForEmployee(emp, date)){
+      if(!data[emp.id]) data[emp.id] = {};
+      if(!data[emp.id].status){ data[emp.id].status = 'Weekend'; fieldPatchesByEmpId[emp.id] = {status:'Weekend'}; }
+    }
+  });
+
+  // Only the specific employees whose default status we just filled in are
+  // sent to the server, and only the `status` field for each — this never
+  // touches any other employee's record, or any other field of these
+  // employees' records, even if someone else is saving concurrently.
+  if(Object.keys(fieldPatchesByEmpId).length) await saveAttendanceRecord(date, fieldPatchesByEmpId);
+  renderAttendanceList(attendanceCache[date]);
+}
+
+/* ---- Shared markup builders (used by both the full-list render and the
+   targeted single-card render, so a status change on one employee never
+   has to rebuild anyone else's card) ---- */
+function buildPerfStripHtml(emp, rec, locked, date){
+  if(rec.status !== 'Present') return '';
+  const dis = locked ? 'disabled' : '';
+  if(emp.role==='analyst'){
+    const gap = computePointGap(rec.totalPoints);
+    return `
+    <div class="perf-strip">
+      <span class="perf-tag">${formatDateLabel(date)}</span>
+      <div class="perf-field"><label>Total Points</label><input type="number" step="any" ${dis} data-emp="${emp.id}" data-field="totalPoints" value="${esc(rec.totalPoints ?? '')}"></div>
+      <div class="perf-field computed ${gapClass(gap)}"><label>Point Gap <span style="text-transform:none;">(Target 400)</span></label><input type="text" readonly data-emp="${emp.id}" data-role="pointGapDisplay" value="${gap}"></div>
+      <div class="perf-field"><label>IR Count</label><input type="number" step="any" ${dis} data-emp="${emp.id}" data-field="irCount" value="${esc(rec.irCount ?? '')}"></div>
+      <div class="perf-field"><label>Reconciliation Count</label><input type="number" step="any" ${dis} data-emp="${emp.id}" data-field="reconCount" value="${esc(rec.reconCount ?? '')}"></div>
+    </div>`;
+  }
+  if(emp.role==='specialist'){
+    const frViaPoints = computeFrViaPoints(rec.totalPoints);
+    const totalFr = computeTotalFr(rec.frCount, frViaPoints);
+    const gap = computeFrGap(totalFr);
+    return `
+    <div class="perf-strip">
+      <span class="perf-tag">${formatDateLabel(date)}</span>
+      <div class="perf-field"><label>Total Points</label><input type="number" step="any" ${dis} data-emp="${emp.id}" data-field="totalPoints" value="${esc(rec.totalPoints ?? '')}"></div>
+      <div class="perf-field"><label>FR Count</label><input type="number" step="any" ${dis} data-emp="${emp.id}" data-field="frCount" value="${esc(rec.frCount ?? '')}"></div>
+      <div class="perf-field computed"><label>FR via Points <span style="text-transform:none;">(2 pts = 1 FR)</span></label><input type="text" readonly data-emp="${emp.id}" data-role="frViaPointsDisplay" value="${frViaPoints}"></div>
+      <div class="perf-field computed"><label>Total FR Count</label><input type="text" readonly data-emp="${emp.id}" data-role="totalFrDisplay" value="${totalFr}"></div>
+      <div class="perf-field computed ${gapClass(gap)}"><label>FR Gap <span style="text-transform:none;">(Target 180)</span></label><input type="text" readonly data-emp="${emp.id}" data-role="frGapDisplay" value="${gap}"></div>
+    </div>`;
+  }
+  return '';
+}
+
+function buildEmpCardHtml(emp, dayData, date, indent){
+  const rec = dayData[emp.id] || {};
+  const status = rec.status || '';
+  const isWeekend = isWeekendForEmployee(emp, date) || status === 'Weekend';
+  const locked = !AUTO_STATUSES.includes(status) && isDateLocked(date);
+  const rosterEntry = rosterMap[emp.id+'|'+date];
+  return `
+  <div class="emp-card ${indent?'is-analyst':''} ${isWeekend?'is-weekend':''} ${locked?'is-locked':''}" data-emp-card="${emp.id}">
+    <div class="att-row">
+      <div>
+        <div class="emp-name">${esc(emp.name)}</div>
+        <div class="emp-shift">${esc(emp.name)} (${esc(emp.shift)})</div>
+        ${rosterEntry ? `<div class="working-day-tag">Working Day: ${esc(rosterEntry.label)}</div>` : ''}
+      </div>
+      <div>
+        <select class="status-select" data-emp="${emp.id}" ${locked?'disabled':''} style="${status?statusStyle(status):''}">
+          <option value="">— Select —</option>
+          ${STATUS_OPTIONS.map(o=>`<option value="${o}" ${o===status?'selected':''}>${o}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex; gap:8px; align-items:flex-end;">
+        ${status==='Present' ? `
+          <div class="extra-field">
+            <label>Marked at</label>
+            <input type="text" readonly value="${esc(rec.timestamp||'')}" data-role="timestamp" data-emp="${emp.id}">
+          </div>` : ''}
+        ${status==='Late Join' ? `
+          <div class="extra-field">
+            <label>Joined at</label>
+            <input type="time" ${locked?'disabled':''} value="${esc(rec.lateTime||'')}" data-role="lateTime" data-emp="${emp.id}">
+          </div>` : ''}
+        ${locked ? `<span class="locked-note">🔒 Unlocks 8:30 AM</span>` : ''}
+        <span class="saved-tick" id="tick-${emp.id}">✓ saved</span>
+      </div>
+    </div>
+    ${buildPerfStripHtml(emp, rec, locked, date)}
+  </div>`;
+}
+
+function renderAttendanceList(dayData){
+  const search = (document.getElementById('attSearch').value||'').toLowerCase();
+  const date = document.getElementById('attDate').value || todayStr();
+  const wrap = document.getElementById('attendanceList');
+  const lead = employees.find(e=>e.role==='lead');
+  const specialists = employees.filter(e=>e.role==='specialist');
+
+  const counts = {}; STATUS_OPTIONS.forEach(s=>counts[s]=0);
+  Object.values(dayData).forEach(rec=>{ if(rec && rec.status) counts[rec.status] = (counts[rec.status]||0)+1; });
+  renderSummaryBar(counts);
+
+  const rowHtml = (emp, indent)=>{
+    if(search && !emp.name.toLowerCase().includes(search)) return '';
+    return buildEmpCardHtml(emp, dayData, date, indent);
+  };
+
+  let html = '';
+  if(lead){
+    const r = rowHtml(lead, false);
+    if(r){ html += `<div class="group-label">Team Lead</div>` + r; }
+  }
+  specialists.forEach(sp=>{
+    const analysts = employees.filter(e=>e.role==='analyst' && e.managerId===sp.id);
+    const rows = [rowHtml(sp,false), ...analysts.map(a=>rowHtml(a,true))].filter(Boolean);
+    if(rows.length){
+      html += `<div class="group-label">${esc(sp.name)}'s branch</div>` + rows.join('');
+    }
+  });
+
+  if(!html) html = `<div class="empty-state">No employees match "${esc(search)}".</div>`;
+  wrap.innerHTML = html;
+  // Event handling on the list is fully delegated (wired once in
+  // wireEvents()), so no per-render listener attachment is needed here —
+  // that's also what makes the targeted single-card updates below work
+  // without any extra wiring.
+}
+
+/**
+ * Replace ONLY one employee's card in the DOM, leaving every other card
+ * (and anything the user is currently mid-typing into them) completely
+ * untouched. Used instead of a full renderAttendanceList() call whenever a
+ * single employee's status/fields change, whether from this browser's own
+ * action or from a background refresh reflecting another user's save.
+ *
+ * If `skipIfFocused` is true and the user's cursor is currently inside
+ * this exact card, the DOM replace is skipped (their in-progress edit is
+ * left alone) — used by the background sync poll so it never yanks away
+ * an active edit. Direct actions the user takes on their own card (status
+ * change, blur-save, etc.) always pass skipIfFocused=false since those are
+ * the user's own already-completed action on that field.
+ */
+function renderSingleEmployeeCard(empId, skipIfFocused){
+  const wrap = document.getElementById('attendanceList');
+  const existing = wrap.querySelector(`.emp-card[data-emp-card="${empId}"]`);
+  if(!existing) return; // not currently rendered (filtered out by search, etc.)
+  if(skipIfFocused && existing.contains(document.activeElement)) return;
+
+  const emp = employees.find(x=>x.id===empId);
+  if(!emp) return;
+  const date = document.getElementById('attDate').value || todayStr();
+  const dayData = attendanceCache[date] || {};
+  const indent = emp.role === 'analyst';
+
+  const tmp = document.createElement('div');
+  tmp.innerHTML = buildEmpCardHtml(emp, dayData, date, indent).trim();
+  const newNode = tmp.firstElementChild;
+  existing.replaceWith(newNode);
+
+  const counts = {}; STATUS_OPTIONS.forEach(s=>counts[s]=0);
+  Object.values(dayData).forEach(rec=>{ if(rec && rec.status) counts[rec.status] = (counts[rec.status]||0)+1; });
+  renderSummaryBar(counts);
+}
+
+function statusStyle(status){
+  const key = STATUS_KEY[status];
+  return `background:var(--${key}-soft); color:var(--${key}); border-color:var(--${key});`;
+}
+
+function renderSummaryBar(counts){
+  const bar = document.getElementById('summaryBar');
+  bar.innerHTML = STATUS_OPTIONS.map(s=>{
+    const key = STATUS_KEY[s];
+    return `<span class="chip" style="background:var(--${key}-soft); color:var(--${key});">
+      <span class="dot" style="background:var(--${key});"></span>${s}: ${counts[s]||0}
+    </span>`;
+  }).join('');
+}
+
+async function onStatusChange(e){
+  const empId = e.target.dataset.emp;
+  const status = e.target.value;
+  const date = document.getElementById('attDate').value;
+  if(!attendanceCache[date]) attendanceCache[date] = {};
+  const rec = attendanceCache[date][empId] || {};
+  rec.status = status;
+  const patch = {status};
+  if(status === 'Present'){
+    rec.timestamp = new Date().toLocaleString();
+    patch.timestamp = rec.timestamp;
+    // lateTime is intentionally left untouched here (matches prior behavior).
+  } else if(status === 'Late Join'){
+    delete rec.timestamp;
+    patch.timestamp = null;
+    // lateTime is intentionally left untouched here — set separately via onLateTimeChange.
+  } else {
+    delete rec.timestamp;
+    delete rec.lateTime;
+    patch.timestamp = null;
+    patch.lateTime = null;
+  }
+  attendanceCache[date][empId] = rec;
+  cancelPendingPerfSave(date, empId); // an explicit status change supersedes any pending debounced perf edit
+  // Field-level save: only status/timestamp/lateTime for THIS employee are
+  // sent, so a concurrent save of this same employee's performance fields
+  // (from this browser's own debounce, or another user/tab) is never
+  // clobbered — the server merges them together instead of one replacing
+  // the other's fields.
+  await saveAttendanceRecord(date, {[empId]: patch});
+  // Targeted update: only this employee's card is rebuilt. Every other
+  // card — including any performance fields another user or this same
+  // user is currently mid-typing into elsewhere in the list — is left
+  // completely alone.
+  renderSingleEmployeeCard(empId, false);
+  flashSaved(empId);
+}
+
+async function onLateTimeChange(e){
+  const empId = e.target.dataset.emp;
+  const date = document.getElementById('attDate').value;
+  if(!attendanceCache[date]) attendanceCache[date] = {};
+  const rec = attendanceCache[date][empId] || {};
+  rec.lateTime = e.target.value;
+  attendanceCache[date][empId] = rec;
+  await saveAttendanceRecord(date, {[empId]: {lateTime: e.target.value}});
+  flashSaved(empId);
+}
+
+function flashSaved(empId){
+  const tick = document.getElementById('tick-'+empId);
+  if(!tick) return;
+  tick.classList.add('show');
+  setTimeout(()=>tick.classList.remove('show'), 1500);
+}
+
+/* ---- Performance field editing: live-compute on every keystroke, but
+   only commit to the shared cache/server on a short debounce (or
+   immediately on blur/change) — see onPerfInput / onPerfChange below.
+   Crucially, NEITHER of these ever triggers a full-list or even a
+   single-card DOM rebuild, so the input the user is actively typing into
+   is never recreated out from under their cursor. ---- */
+const pendingPerfSaves = {}; // `${date}|${empId}` -> timeout id
+const dirtyPerfFields = {}; // `${date}|${empId}` -> Set of field names touched since the last successful save
+const PERF_SAVE_DEBOUNCE_MS = 600;
+
+function perfSaveKey(date, empId){ return date+'|'+empId; }
+
+function cancelPendingPerfSave(date, empId){
+  const k = perfSaveKey(date, empId);
+  if(pendingPerfSaves[k]){ clearTimeout(pendingPerfSaves[k]); delete pendingPerfSaves[k]; }
+}
+
+function markPerfFieldDirty(date, empId, field){
+  const k = perfSaveKey(date, empId);
+  if(!dirtyPerfFields[k]) dirtyPerfFields[k] = new Set();
+  dirtyPerfFields[k].add(field);
+}
+
+function commitPerfFieldToCache(empId, field, rawValue){
+  const date = document.getElementById('attDate').value;
+  if(!attendanceCache[date]) attendanceCache[date] = {};
+  const rec = attendanceCache[date][empId] || {};
+  rec[field] = rawValue === '' ? '' : Number(rawValue);
+  markPerfFieldDirty(date, empId, field);
+  const emp = employees.find(x=>x.id===empId);
+  if(emp && emp.role==='analyst'){
+    rec.pointGap = computePointGap(rec.totalPoints);
+    markPerfFieldDirty(date, empId, 'pointGap');
+  }
+  if(emp && emp.role==='specialist'){
+    rec.frViaPoints = computeFrViaPoints(rec.totalPoints);
+    rec.totalFrCount = computeTotalFr(rec.frCount, rec.frViaPoints);
+    rec.frGap = computeFrGap(rec.totalFrCount);
+    markPerfFieldDirty(date, empId, 'frViaPoints');
+    markPerfFieldDirty(date, empId, 'totalFrCount');
+    markPerfFieldDirty(date, empId, 'frGap');
+  }
+  attendanceCache[date][empId] = rec;
+  return date;
+}
+
+/** Builds a field-level patch — { field: value, ... } — from exactly the
+ * fields marked dirty since the last save for this employee, reading their
+ * current (already-committed) values out of attendanceCache. Only these
+ * fields are sent to the server, so a concurrent status change (or another
+ * user's edit) touching *other* fields of this same employee is never
+ * overwritten by this save. */
+function buildDirtyFieldPatch(date, empId){
+  const k = perfSaveKey(date, empId);
+  const fields = dirtyPerfFields[k] ? Array.from(dirtyPerfFields[k]) : [];
+  delete dirtyPerfFields[k];
+  if(fields.length === 0) return null;
+  const rec = (attendanceCache[date] && attendanceCache[date][empId]) || {};
+  const patch = {};
+  fields.forEach(f=>{ patch[f] = rec[f] === undefined ? null : rec[f]; });
+  return patch;
+}
+
+function schedulePerfSave(empId, field, rawValue){
+  const date = commitPerfFieldToCache(empId, field, rawValue);
+  const k = perfSaveKey(date, empId);
+  cancelPendingPerfSave(date, empId);
+  pendingPerfSaves[k] = setTimeout(async ()=>{
+    delete pendingPerfSaves[k];
+    const patch = buildDirtyFieldPatch(date, empId);
+    if(patch) await saveAttendanceRecord(date, {[empId]: patch});
+    flashSaved(empId);
+  }, PERF_SAVE_DEBOUNCE_MS);
+}
+
+async function flushPerfSave(empId, field, rawValue){
+  const date = commitPerfFieldToCache(empId, field, rawValue);
+  cancelPendingPerfSave(date, empId);
+  const patch = buildDirtyFieldPatch(date, empId);
+  if(patch) await saveAttendanceRecord(date, {[empId]: patch});
+  flashSaved(empId);
+}
+
+function onPerfInput(e){
+  // Live-updates the read-only computed displays (Point Gap / FR via
+  // Points / etc.) on every keystroke — purely visual, touches only this
+  // one card's own computed fields, never rebuilds any DOM.
+  const empId = e.target.dataset.emp;
+  const card = document.querySelector(`.emp-card[data-emp-card="${empId}"]`);
+  if(!card) return;
+  const emp = employees.find(x=>x.id===empId);
+  if(!emp) return;
+
+  if(emp.role==='analyst'){
+    const totalPointsInput = card.querySelector('input[data-field="totalPoints"]');
+    const gapDisplay = card.querySelector('input[data-role="pointGapDisplay"]');
+    if(totalPointsInput && gapDisplay){
+      const gap = computePointGap(totalPointsInput.value);
+      gapDisplay.value = gap;
+      gapDisplay.closest('.perf-field').classList.remove('gap-met','gap-pending');
+      gapDisplay.closest('.perf-field').classList.add(gapClass(gap));
+    }
+  } else if(emp.role==='specialist'){
+    const totalPointsInput = card.querySelector('input[data-field="totalPoints"]');
+    const frInput = card.querySelector('input[data-field="frCount"]');
+    const viaDisplay = card.querySelector('input[data-role="frViaPointsDisplay"]');
+    const totalDisplay = card.querySelector('input[data-role="totalFrDisplay"]');
+    const gapDisplay = card.querySelector('input[data-role="frGapDisplay"]');
+    if(viaDisplay && totalDisplay){
+      const viaPts = computeFrViaPoints(totalPointsInput ? totalPointsInput.value : 0);
+      viaDisplay.value = viaPts;
+      const totalFr = computeTotalFr(frInput ? frInput.value : 0, viaPts);
+      totalDisplay.value = totalFr;
+      if(gapDisplay){
+        const gap = computeFrGap(totalFr);
+        gapDisplay.value = gap;
+        gapDisplay.closest('.perf-field').classList.remove('gap-met','gap-pending');
+        gapDisplay.closest('.perf-field').classList.add(gapClass(gap));
+      }
+    }
+  }
+  // Commit + debounce-save the underlying value so it survives even if a
+  // background refresh or another employee's status change happens before
+  // the field is blurred, without firing a network request on every
+  // keystroke.
+  schedulePerfSave(empId, e.target.dataset.field, e.target.value);
+}
+
+async function onPerfChange(e){
+  // Fires on blur / number-input step — flush immediately so the save is
+  // reliable the moment the user moves on, rather than waiting out the
+  // debounce window.
+  await flushPerfSave(e.target.dataset.emp, e.target.dataset.field, e.target.value);
+}
+
+/* ===================================================================
+   ROSTER (per-date working-day / roster-off schedule)
+=================================================================== */
+const DAY_NAME_TO_INDEX = {sunday:0, monday:1, tuesday:2, wednesday:3, thursday:4, friday:5, saturday:6};
+function normalizeDayName(s){
+  const key = String(s||'').trim().toLowerCase();
+  return DAY_NAME_TO_INDEX.hasOwnProperty(key) ? key : null;
+}
+
+function handleRosterUpload(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async (evt)=>{
+    try{
+      const wb = XLSX.read(evt.target.result, {type: file.name.endsWith('.csv') ? 'string' : 'array', cellDates:true});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const grid = XLSX.utils.sheet_to_json(sheet, {header:1, defval:''});
+      if(!grid.length){ toast('That roster file looks empty.'); return; }
+
+      // Row 0: dates across the top (Date-typed cells) plus a "Week-off" header on the right.
+      const headerRow = grid[0] || [];
+      const dateColIndexes = [];
+      let weekOffColIdx = -1;
+      headerRow.forEach((cell, colIdx)=>{
+        if(colIdx===0) return;
+        if(cell instanceof Date) dateColIndexes.push(colIdx);
+        else if(typeof cell === 'string' && /week.?off/i.test(cell)) weekOffColIdx = colIdx;
+      });
+      if(!dateColIndexes.length){ toast('Could not find any dates across the top row of that roster file.'); return; }
+      if(weekOffColIdx===-1) weekOffColIdx = dateColIndexes[dateColIndexes.length-1] + 1;
+
+      const colToDate = {};
+      dateColIndexes.forEach(ci=>{ colToDate[ci] = dateStrFromUTC(headerRow[ci]); });
+
+      // Every other row: App Names appear in the date columns (their working days),
+      // and the Week-off column gives that row's designated Roster Off day-of-week.
+      const nameToOffDay = {};
+      for(let r=2; r<grid.length; r++){
+        const row = grid[r];
+        if(!row || !row.length) continue;
+        const label = cleanText(row[0]);
+        if(label && /^total/i.test(label)) continue; // skip summary rows
+
+        const offDayNorm = normalizeDayName(cleanText(row[weekOffColIdx]));
+        if(!offDayNorm) continue;
+
+        dateColIndexes.forEach(ci=>{
+          const nm = cleanText(row[ci]);
+          if(nm) nameToOffDay[nm.toLowerCase()] = offDayNorm;
+        });
+      }
+
+      if(!Object.keys(nameToOffDay).length){ toast('Could not find any employee names paired with a Roster Off day in that file.'); return; }
+
+      // Build the full run of calendar weeks (Mon–Sun) spanning the sheet's date range.
+      const allDates = Object.values(colToDate).sort();
+      const firstMonday = mondayOfDate(allDates[0]);
+      const lastMonday = mondayOfDate(allDates[allDates.length-1]);
+      const lastSunday = new Date(lastMonday);
+      lastSunday.setUTCDate(lastSunday.getUTCDate()+6);
+
+      const weeks = [];
+      let cursor = new Date(firstMonday);
+      while(cursor <= lastSunday){
+        weeks.push(datesForWeekContaining(dateStrFromUTC(cursor)));
+        cursor.setUTCDate(cursor.getUTCDate()+7);
+      }
+
+      const newMap = {};
+      let matched=0, unmatchedNames = new Set();
+      Object.keys(nameToOffDay).forEach(nmLower=>{
+        const emp = employees.find(e=>(e.appName||'').toLowerCase()===nmLower) ||
+                    employees.find(e=>{
+                      const ea = (e.appName||'').toLowerCase();
+                      return ea && (ea.includes(nmLower) || nmLower.includes(ea));
+                    });
+        if(!emp){ unmatchedNames.add(nmLower); return; }
+        matched++;
+        const offDayIdx = DAY_NAME_TO_INDEX[nameToOffDay[nmLower]];
+        weeks.forEach(weekDates=>{
+          weekDates.forEach(dateStr=>{
+            const isOffDay = dayIndexForDateStr(dateStr) === offDayIdx;
+            newMap[emp.id+'|'+dateStr] = isOffDay
+              ? {label:'Roster Off', isOff:true}
+              : {label:'Working Day', isOff:false};
+          });
+        });
+      });
+
+      rosterMap = newMap;
+      await storeSet('roster_map', JSON.stringify(rosterMap));
+      await storeSet('roster_meta', JSON.stringify({
+        fileName:file.name, uploadedAt:new Date().toISOString(),
+        matched, unmatched:unmatchedNames.size, weeks:weeks.length
+      }));
+      renderRosterSummary();
+      renderRosterDateOptions();
+      loadAndRenderAttendance();
+      toast(`Roster loaded — ${matched} employees matched across ${weeks.length} week(s)${unmatchedNames.size?`, ${unmatchedNames.size} names not on your team`:''}.`);
+    }catch(err){
+      console.error(err);
+      toast('Could not read that roster file.');
+    }
+  };
+  if(file.name.endsWith('.csv')) reader.readAsText(file);
+  else reader.readAsArrayBuffer(file);
+}
+
+async function renderRosterSummary(){
+  const wrap = document.getElementById('rosterSummary');
+  const metaRaw = await storeGet('roster_meta');
+  if(!metaRaw){ wrap.innerHTML = 'No roster uploaded yet — attendance falls back to each employee\'s weekly shift pattern.'; return; }
+  const meta = JSON.parse(metaRaw);
+  wrap.innerHTML = `Loaded <strong>${esc(meta.fileName)}</strong> on ${new Date(meta.uploadedAt).toLocaleString()} — ${meta.matched} employee${meta.matched===1?'':'s'} matched across ${meta.weeks||0} week(s)${meta.unmatched?`, ${meta.unmatched} name(s) in the file didn't match anyone on your team`:''}.`;
+}
+
+function renderRosterDateOptions(){
+  const sel = document.getElementById('rosterDateSelect');
+  const prevVal = sel.value;
+  const dates = Array.from(new Set(Object.keys(rosterMap).map(k=>k.split('|')[1]))).sort();
+  if(!dates.length){ sel.innerHTML = `<option value="">No roster dates loaded</option>`; renderRosterPreview(); return; }
+  sel.innerHTML = dates.map(d=>`<option value="${d}">${formatDateLabel(d)}</option>`).join('');
+  if(dates.includes(prevVal)) sel.value = prevVal;
+  renderRosterPreview();
+}
+
+function renderRosterPreview(){
+  const sel = document.getElementById('rosterDateSelect');
+  const date = sel.value;
+  const wrap = document.getElementById('rosterPreviewWrap');
+  if(!date){ wrap.innerHTML = `<div class="empty-state">Upload a roster file to see a preview here.</div>`; return; }
+  const rows = employees.map(emp=>{
+    const entry = rosterMap[emp.id+'|'+date];
+    if(!entry) return `<tr><td>${esc(emp.name)}</td><td>${cap(emp.role)}</td><td class="no-proof">No roster entry</td><td>—</td></tr>`;
+    return `<tr><td>${esc(emp.name)}</td><td>${cap(emp.role)}</td><td>${esc(entry.label)}</td><td>${entry.isOff ? 'Yes' : 'No'}</td></tr>`;
+  }).join('');
+  wrap.innerHTML = `
+    <table class="hist-table">
+      <thead><tr><th>Name</th><th>Role</th><th>Working Day</th><th>Roster Off?</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+/* ===================================================================
+   LEAVE TRACKER
+=================================================================== */
+async function rebuildLeaveByDateMap(){
+  const idxRaw = await storeGet('leave_index');
+  const idx = idxRaw ? JSON.parse(idxRaw) : [];
+  const map = {};
+  for(const id of idx){
+    const raw = await storeGet('leave:'+id);
+    if(!raw) continue;
+    const rec = JSON.parse(raw);
+    (rec.dates||[]).forEach(d=>{
+      if(!map[d]) map[d] = new Set();
+      map[d].add(rec.employeeId);
+    });
+  }
+  leaveByDateMap = map;
+}
+
+function renderLeaveEmployeeOptions(){
+  const sel = document.getElementById('leaveEmployee');
+  sel.innerHTML = employees.map(e=>`<option value="${e.id}">${esc(e.name)} — ${esc(e.shift)}</option>`).join('');
+}
+
+function addLeaveDateChip(){
+  const inp = document.getElementById('leaveDateInput');
+  if(!inp.value) return;
+  if(!currentLeaveDates.includes(inp.value)) currentLeaveDates.push(inp.value);
+  currentLeaveDates.sort();
+  renderDateChips();
+  inp.value = '';
+}
+function renderDateChips(){
+  const row = document.getElementById('dateChipRow');
+  row.innerHTML = currentLeaveDates.map(d=>`
+    <span class="date-chip">${d}<button data-d="${d}" type="button">✕</button></span>
+  `).join('');
+  row.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      currentLeaveDates = currentLeaveDates.filter(d=>d!==b.dataset.d);
+      renderDateChips();
+    });
+  });
+}
+
+function handleScreenshotUpload(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  if(file.size > 4*1024*1024){
+    toast('That image is quite large — try a smaller screenshot (under ~4MB).');
+  }
+  const reader = new FileReader();
+  reader.onload = (evt)=>{
+    currentScreenshot = evt.target.result;
+    document.getElementById('screenshotLabel').innerHTML =
+      `${esc(file.name)}<br><img src="${currentScreenshot}">`;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function submitLeaveRecord(){
+  const empId = document.getElementById('leaveEmployee').value;
+  const emp = employees.find(e=>e.id===empId);
+  if(!emp){ toast('Select an employee first.'); return; }
+  if(!currentLeaveDates.length){ toast('Add at least one leave date.'); return; }
+
+  let leaveType = document.getElementById('leaveType').value;
+  if(leaveType === '__other') leaveType = document.getElementById('leaveTypeOther').value.trim();
+
+  const id = 'lv_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+  const record = {
+    id, employeeId: empId, employeeName: emp.name,
+    dates: [...currentLeaveDates], type: leaveType || '',
+    screenshot: currentScreenshot || null,
+    submittedAt: new Date().toISOString()
+  };
+
+  const ok = await storeSet('leave:'+id, JSON.stringify(record));
+  if(!ok){ toast('Could not save — the screenshot may be too large.'); return; }
+
+  const idxRaw = await storeGet('leave_index');
+  const idx = idxRaw ? JSON.parse(idxRaw) : [];
+  idx.push(id);
+  await storeSet('leave_index', JSON.stringify(idx));
+  await rebuildLeaveByDateMap();
+
+  currentLeaveDates = []; currentScreenshot = null;
+  renderDateChips();
+  document.getElementById('leaveType').value = '';
+  document.getElementById('leaveTypeOther').value = '';
+  document.getElementById('leaveTypeOther').style.display = 'none';
+  document.getElementById('screenshotLabel').textContent = 'Click to attach a screenshot';
+  document.getElementById('screenshotInput').value = '';
+
+  toast('Leave record saved — On Leave will show automatically on those dates.');
+  renderLeaveTable();
+  loadAndRenderAttendance();
+}
+
+let cachedLeaveRecords = [];
+async function renderLeaveTable(){
+  const wrap = document.getElementById('leaveTableWrap');
+  const idxRaw = await storeGet('leave_index');
+  const idx = idxRaw ? JSON.parse(idxRaw) : [];
+  if(!idx.length){
+    wrap.innerHTML = `<div class="empty-state">No leave records yet — submit one above.</div>`;
+    cachedLeaveRecords = [];
+    return;
+  }
+  const records = [];
+  for(const id of idx){
+    const raw = await storeGet('leave:'+id);
+    if(raw) records.push(JSON.parse(raw));
+  }
+  records.sort((a,b)=> new Date(b.submittedAt) - new Date(a.submittedAt));
+  cachedLeaveRecords = records;
+
+  const searchDate = document.getElementById('leaveHistorySearchDate') ? document.getElementById('leaveHistorySearchDate').value : '';
+  const visible = searchDate ? records.filter(r=>(r.dates||[]).includes(searchDate)) : records;
+
+  if(!visible.length){
+    wrap.innerHTML = searchDate
+      ? `<div class="empty-state">No one was on leave on ${formatDateLabel(searchDate)}.</div>`
+      : `<div class="empty-state">No leave records yet — submit one above.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = `
+    ${searchDate ? `<div class="hint" style="margin-bottom:10px;">Showing everyone on leave on <strong>${formatDateLabel(searchDate)}</strong> (${visible.length} record${visible.length===1?'':'s'}).</div>` : ''}
+    <table class="leave-table">
+      <thead><tr><th>Employee</th><th>Date(s)</th><th>Type</th><th>Proof</th><th>Logged</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${visible.map(r=>`
+          <tr data-id="${r.id}">
+            <td>${esc(r.employeeName)}</td>
+            <td class="mono">${r.dates.join(', ')}</td>
+            <td>${esc(r.type) || '<span class="no-proof">—</span>'}</td>
+            <td>${r.screenshot ? `<img class="thumb" src="${r.screenshot}" data-full="${r.screenshot}">` : '<span class="no-proof">No screenshot</span>'}</td>
+            <td class="mono" style="font-size:11px; color:var(--ink-soft);">${new Date(r.submittedAt).toLocaleDateString()}</td>
+            <td class="row-actions">
+              <button class="btn btn-outline btn-sm" data-edit="${r.id}">Edit</button>
+              <button class="btn btn-danger-outline btn-sm" data-del="${r.id}">Delete</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+
+  wrap.querySelectorAll('.thumb').forEach(img=>{
+    img.addEventListener('click', ()=>{
+      document.getElementById('imgModalImg').src = img.dataset.full;
+      document.getElementById('imgModal').classList.add('show');
+    });
+  });
+  wrap.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const ok = await requireAdminAuth('delete this leave record');
+      if(!ok) return;
+      const id = btn.dataset.del;
+      await storeDelete('leave:'+id);
+      const newIdx = idx.filter(i=>i!==id);
+      await storeSet('leave_index', JSON.stringify(newIdx));
+      await rebuildLeaveByDateMap();
+      renderLeaveTable();
+      loadAndRenderAttendance();
+      toast('Record deleted.');
+    });
+  });
+  wrap.querySelectorAll('[data-edit]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const ok = await requireAdminAuth('edit this leave record');
+      if(!ok) return;
+      const rec = cachedLeaveRecords.find(r=>r.id===btn.dataset.edit);
+      if(!rec) return;
+      openLeaveEditModal(rec);
+    });
+  });
+}
+
+function buildLeaveEditFields(record){
+  modalLeaveDates = [...record.dates];
+  modalScreenshot = record.screenshot || null;
+  return `
+    <div class="field" style="margin-bottom:12px;">
+      <label>Employee</label>
+      <select id="editLeaveEmployee">${employees.map(e=>`<option value="${e.id}" ${e.id===record.employeeId?'selected':''}>${esc(e.name)}</option>`).join('')}</select>
+    </div>
+    <div class="field" style="margin-bottom:12px;">
+      <label>Leave type</label>
+      <input type="text" id="editLeaveType" value="${esc(record.type||'')}" placeholder="e.g., Sick Leave">
+    </div>
+    <div class="field" style="margin-bottom:12px;">
+      <label>Leave date(s)</label>
+      <div style="display:flex; gap:6px;">
+        <input type="date" id="editLeaveDateInput" style="flex:1;">
+        <button class="btn btn-outline btn-sm" id="editAddDateBtn" type="button">Add</button>
+      </div>
+      <div class="date-chip-row" id="editDateChipRow"></div>
+    </div>
+    <div class="field">
+      <label>Screenshot</label>
+      <label class="upload-slot" id="editScreenshotSlot" style="display:block;">
+        <span id="editScreenshotLabel">${modalScreenshot ? 'Screenshot attached — click to replace' : 'Click to attach a screenshot'}</span>
+        ${modalScreenshot ? `<br><img src="${modalScreenshot}" style="max-height:60px;margin-top:6px;border-radius:6px;">` : ''}
+        <input type="file" id="editScreenshotInput" accept="image/*" style="display:none;">
+      </label>
+    </div>
+  `;
+}
+function renderEditDateChips(){
+  const row = document.getElementById('editDateChipRow');
+  if(!row) return;
+  row.innerHTML = modalLeaveDates.map(d=>`<span class="date-chip">${d}<button data-d="${d}" type="button">✕</button></span>`).join('');
+  row.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', ()=>{ modalLeaveDates = modalLeaveDates.filter(d=>d!==b.dataset.d); renderEditDateChips(); });
+  });
+}
+
+function openLeaveEditModal(record){
+  openGenericModal(
+    `Edit leave — ${record.employeeName}`,
+    buildLeaveEditFields(record),
+    ()=>saveLeaveEdit(record),
+    ()=>{
+      renderEditDateChips();
+      document.getElementById('editAddDateBtn').addEventListener('click', ()=>{
+        const inp = document.getElementById('editLeaveDateInput');
+        if(inp.value && !modalLeaveDates.includes(inp.value)){
+          modalLeaveDates.push(inp.value); modalLeaveDates.sort(); renderEditDateChips(); inp.value='';
+        }
+      });
+      document.getElementById('editScreenshotInput').addEventListener('change', (e)=>{
+        const file = e.target.files[0]; if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev)=>{
+          modalScreenshot = ev.target.result;
+          document.getElementById('editScreenshotLabel').textContent = file.name;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  );
+}
+
+async function saveLeaveEdit(record){
+  const empId = document.getElementById('editLeaveEmployee').value;
+  const emp = employees.find(e=>e.id===empId);
+  const type = document.getElementById('editLeaveType').value.trim();
+  if(!modalLeaveDates.length){ toast('Add at least one date.'); return; }
+  const updated = {...record, employeeId:empId, employeeName: emp?emp.name:record.employeeName, type, dates:[...modalLeaveDates], screenshot: modalScreenshot};
+  const ok = await storeSet('leave:'+record.id, JSON.stringify(updated));
+  if(!ok){ toast('Could not save — the screenshot may be too large.'); return; }
+  await rebuildLeaveByDateMap();
+  closeGenericModal();
+  toast('Leave record updated.');
+  renderLeaveTable();
+  loadAndRenderAttendance();
+}
+
+/* ===================================================================
+   HISTORY (Attendance & Performance archive, by date)
+=================================================================== */
+function renderHistoryDateOptions(){
+  const input = document.getElementById('histDateSelect');
+  const datalist = document.getElementById('histKnownDates');
+  const dates = Array.from(new Set([...attendanceDatesIndex, activeBusinessDate])).sort().reverse();
+  datalist.innerHTML = dates.map(d=>`<option value="${d}" label="${formatDateLabel(d)}${d===activeBusinessDate?' (today)':''}"></option>`).join('');
+  if(!input.value) input.value = activeBusinessDate;
+  renderHistoryAttendance();
+}
+
+async function renderHistoryAttendance(){
+  const input = document.getElementById('histDateSelect');
+  const date = input.value;
+  const wrap = document.getElementById('histAttWrap');
+  const hintEl = document.getElementById('histDateHint');
+  if(!date){ wrap.innerHTML = `<div class="empty-state">Pick a date to view its attendance.</div>`; hintEl.textContent=''; return; }
+  hintEl.textContent = formatDateLabel(date) + (date===activeBusinessDate ? ' — today' : (attendanceDatesIndex.includes(date) ? '' : ' — no records saved for this date yet'));
+
+  const raw = await storeGet('attendance:'+date);
+  const dayData = raw ? JSON.parse(raw) : {};
+
+  const lead = employees.find(e=>e.role==='lead');
+  const ordered = [];
+  if(lead) ordered.push(lead);
+  employees.filter(e=>e.role==='specialist').forEach(sp=>{
+    ordered.push(sp);
+    employees.filter(e=>e.role==='analyst' && e.managerId===sp.id).forEach(a=>ordered.push(a));
+  });
+  employees.filter(e=>!ordered.includes(e)).forEach(e=>ordered.push(e));
+
+  const rows = ordered.map(emp=>{
+    const rec = dayData[emp.id];
+    const actionCell = `<td class="row-actions">
+        <button class="btn btn-outline btn-sm hist-edit-btn" data-emp="${emp.id}" data-date="${date}">Edit</button>
+        ${rec && rec.status ? `<button class="btn btn-danger-outline btn-sm hist-del-btn" data-emp="${emp.id}" data-date="${date}">Delete</button>` : ''}
+      </td>`;
+    if(!rec || !rec.status){
+      return `<tr><td>${esc(emp.name)}</td><td>${cap(emp.role)}</td><td colspan="9" class="no-proof">No entry logged</td>${actionCell}</tr>`;
+    }
+    const key = STATUS_KEY[rec.status] || 'rosteroff';
+    const timeDetail = rec.status==='Present' ? (rec.timestamp||'—') : (rec.status==='Late Join' ? (rec.lateTime||'—') : '—');
+    const totalFr = computeTotalFr(rec.frCount, rec.frViaPoints ?? computeFrViaPoints(rec.totalPoints));
+    let gapCell = '—';
+    if(emp.role==='analyst') gapCell = fmtNum(rec.pointGap ?? computePointGap(rec.totalPoints));
+    else if(emp.role==='specialist') gapCell = fmtNum(rec.frGap ?? computeFrGap(totalFr));
+    return `<tr>
+      <td>${esc(emp.name)}</td>
+      <td>${cap(emp.role)}</td>
+      <td><span class="hist-status-pill" style="background:var(--${key}-soft); color:var(--${key});">${esc(rec.status)}</span></td>
+      <td>${esc(timeDetail)}</td>
+      <td>${rec.status==='Present' ? fmtNum(rec.totalPoints) : '—'}</td>
+      <td>${rec.status==='Present' && emp.role==='analyst' ? fmtNum(rec.irCount) : '—'}</td>
+      <td>${rec.status==='Present' && emp.role==='analyst' ? fmtNum(rec.reconCount) : '—'}</td>
+      <td>${rec.status==='Present' && emp.role==='specialist' ? fmtNum(rec.frCount) : '—'}</td>
+      <td>${rec.status==='Present' && emp.role==='specialist' ? fmtNum(rec.frViaPoints ?? computeFrViaPoints(rec.totalPoints)) : '—'}</td>
+      <td>${rec.status==='Present' && emp.role==='specialist' ? fmtNum(totalFr) : '—'}</td>
+      <td>${rec.status==='Present' ? gapCell : '—'}</td>
+      ${actionCell}
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <table class="hist-table">
+      <thead><tr>
+        <th>Name</th><th>Role</th><th>Status</th><th>Time detail</th><th>Total Pts</th>
+        <th>IR Count</th><th>Recon. Count</th><th>FR Count</th><th>FR via Pts</th><th>Total FR</th><th>Gap vs Target</th><th>Actions</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  wrap.querySelectorAll('.hist-edit-btn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const ok = await requireAdminAuth('edit this attendance record');
+      if(!ok) return;
+      const emp = employees.find(x=>x.id===btn.dataset.emp);
+      openEditAttendanceHistory(btn.dataset.date, emp);
+    });
+  });
+  wrap.querySelectorAll('.hist-del-btn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const ok = await requireAdminAuth('delete this attendance record');
+      if(!ok) return;
+      await deleteAttendanceHistoryRecord(btn.dataset.date, btn.dataset.emp);
+    });
+  });
+}
+
+function buildAttendanceEditFields(emp, rec){
+  const status = rec.status || '';
+  let html = `
+  <div class="field" style="margin-bottom:12px;">
+    <label>Status</label>
+    <select id="editStatus">
+      <option value="">— Select —</option>
+      ${STATUS_OPTIONS.map(o=>`<option value="${o}" ${o===status?'selected':''}>${o}</option>`).join('')}
+    </select>
+  </div>
+  <div id="editLateWrap" style="display:${status==='Late Join'?'block':'none'}; margin-bottom:12px;">
+    <div class="field"><label>Joined at</label><input type="time" id="editLateTime" value="${esc(rec.lateTime||'')}"></div>
+  </div>
+  <div id="editPerfWrap" style="display:${status==='Present'?'block':'none'};">
+  `;
+  if(emp.role==='analyst'){
+    html += `
+    <div class="field" style="margin-bottom:10px;"><label>Total Points</label><input type="number" step="any" id="editTotalPoints" value="${esc(rec.totalPoints ?? '')}"></div>
+    <div class="field" style="margin-bottom:10px;"><label>IR Count</label><input type="number" step="any" id="editIrCount" value="${esc(rec.irCount ?? '')}"></div>
+    <div class="field"><label>Reconciliation Count</label><input type="number" step="any" id="editReconCount" value="${esc(rec.reconCount ?? '')}"></div>`;
+  } else if(emp.role==='specialist'){
+    html += `
+    <div class="field" style="margin-bottom:10px;"><label>Total Points</label><input type="number" step="any" id="editTotalPoints" value="${esc(rec.totalPoints ?? '')}"></div>
+    <div class="field"><label>FR Count</label><input type="number" step="any" id="editFrCount" value="${esc(rec.frCount ?? '')}"></div>`;
+  } else {
+    html += `<div class="hint">No performance fields apply to this role.</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+async function openEditAttendanceHistory(date, emp){
+  const raw = await storeGet('attendance:'+date);
+  const dayData = raw ? JSON.parse(raw) : {};
+  const rec = dayData[emp.id] || {};
+  openGenericModal(
+    `Edit — ${emp.name} (${formatDateLabel(date)})`,
+    buildAttendanceEditFields(emp, rec),
+    async ()=>{
+      const statusSel = document.getElementById('editStatus');
+      const newRec = {...rec};
+      newRec.status = statusSel.value;
+      if(newRec.status==='Present'){
+        if(!newRec.timestamp) newRec.timestamp = new Date().toLocaleString();
+      } else { delete newRec.timestamp; }
+      if(newRec.status==='Late Join'){
+        newRec.lateTime = document.getElementById('editLateTime') ? document.getElementById('editLateTime').value : '';
+      } else { delete newRec.lateTime; }
+      if(newRec.status==='Present'){
+        if(emp.role==='analyst'){
+          newRec.totalPoints = numOrEmpty(document.getElementById('editTotalPoints').value);
+          newRec.irCount = numOrEmpty(document.getElementById('editIrCount').value);
+          newRec.reconCount = numOrEmpty(document.getElementById('editReconCount').value);
+          newRec.pointGap = computePointGap(newRec.totalPoints);
+        } else if(emp.role==='specialist'){
+          newRec.totalPoints = numOrEmpty(document.getElementById('editTotalPoints').value);
+          newRec.frCount = numOrEmpty(document.getElementById('editFrCount').value);
+          newRec.frViaPoints = computeFrViaPoints(newRec.totalPoints);
+          newRec.totalFrCount = computeTotalFr(newRec.frCount, newRec.frViaPoints);
+          newRec.frGap = computeFrGap(newRec.totalFrCount);
+        }
+      }
+      // Merge-write just this one employee's record so an admin edit here
+      // can never overwrite anyone else's attendance for the same date,
+      // even if another user is saving concurrently.
+      const merged = await storeMerge('attendance:'+date, {[emp.id]: newRec});
+      await ensureDateInIndex(date);
+      if(attendanceCache[date] || merged) attendanceCache[date] = merged || {...(attendanceCache[date]||{}), [emp.id]: newRec};
+      closeGenericModal();
+      toast('Record updated.');
+      renderHistoryAttendance();
+      if(document.getElementById('attDate').value === date) loadAndRenderAttendance();
+    },
+    ()=>{
+      const sel = document.getElementById('editStatus');
+      sel.addEventListener('change', ()=>{
+        document.getElementById('editLateWrap').style.display = sel.value==='Late Join' ? 'block':'none';
+        document.getElementById('editPerfWrap').style.display = sel.value==='Present' ? 'block':'none';
+      });
+    }
+  );
+}
+
+async function deleteAttendanceHistoryRecord(date, empId){
+  // A `null` value in a merge patch tells the server to delete that field
+  // — leaves every other employee's record for this date untouched.
+  const merged = await storeMerge('attendance:'+date, {[empId]: null});
+  if(attendanceCache[date] || merged){
+    attendanceCache[date] = merged || (()=>{ const d = {...(attendanceCache[date]||{})}; delete d[empId]; return d; })();
+  }
+  toast('Record deleted.');
+  renderHistoryAttendance();
+  if(document.getElementById('attDate').value === date) loadAndRenderAttendance();
+}
+
+/* ===================================================================
+   PERFORMANCE TRACKER (Daily / Weekly / Monthly, from roster employees)
+=================================================================== */
+function initPerformanceTrackerDefaults(){
+  const dailyEl = document.getElementById('perfDailyDate');
+  const weeklyEl = document.getElementById('perfWeeklyDate');
+  const monthlyEl = document.getElementById('perfMonthlyDate');
+  if(!dailyEl.value) dailyEl.value = activeBusinessDate;
+  if(!weeklyEl.value) weeklyEl.value = activeBusinessDate;
+  if(!monthlyEl.value) monthlyEl.value = activeBusinessDate;
+  renderPerfTab('daily');
+  renderPerfTab('weekly');
+  renderPerfTab('monthly');
+}
+
+function getPerfDates(periodType){
+  if(periodType==='daily'){
+    const d = document.getElementById('perfDailyDate').value || activeBusinessDate;
+    return {dates:[d], periodKey:d};
+  }
+  if(periodType==='weekly'){
+    const anchor = document.getElementById('perfWeeklyDate').value || activeBusinessDate;
+    const dates = datesForWeekContaining(anchor);
+    return {dates, periodKey: dates[0]};
+  }
+  const anchor = document.getElementById('perfMonthlyDate').value || activeBusinessDate;
+  const dates = datesForMonthContaining(anchor);
+  return {dates, periodKey: dates[0].slice(0,7)};
+}
+
+/* Working days used ONLY for the Average Points denominator — never as a source of
+   Total Points/IR/Reco/FR, which come exclusively from the uploaded Reconciliation Report. */
+function computeWorkedDays(emp, dates){
+  const effectiveDates = dates.filter(d=>d<=dhakaTodayCalendarStr());
+  const scheduled = effectiveDates.filter(d=>
+    !isWeekendForEmployee(emp, d) && !(rosterMap[emp.id+'|'+d] && rosterMap[emp.id+'|'+d].isOff)
+  );
+  const leaveOverlap = scheduled.filter(d=> leaveByDateMap[d] && leaveByDateMap[d].has(emp.id));
+  return scheduled.length - leaveOverlap.length;
+}
+
+async function renderPerfTab(periodType){
+  const {dates, periodKey} = getPerfDates(periodType);
+  const role = perfActiveRole[periodType];
+  const statusEl = document.getElementById(`perf-${periodType}-status`);
+  const wrap = document.getElementById(`perf-${periodType}-table`);
+
+  const recoRaw = await storeGet(`reco:${periodType}:${periodKey}`);
+  const reco = recoRaw ? JSON.parse(recoRaw) : null;
+
+  if(!reco){
+    statusEl.innerHTML = `<span class="reco-badge is-auto">No report uploaded</span> Upload a ${periodType} Reconciliation Report to populate this period — the tracker uses no other data source.`;
+    wrap.innerHTML = `<div class="empty-state">No reconciliation report uploaded for this period yet.</div>`;
+    return;
+  }
+
+  statusEl.innerHTML = `<span class="reco-badge is-manual">From report</span> ${esc(reco.fileName||'')} — uploaded ${reco.uploadedAt ? new Date(reco.uploadedAt).toLocaleString() : ''}, ${reco.matched||0} employee${reco.matched===1?'':'s'} matched${reco.unmatched?`, ${reco.unmatched} row(s) unmatched`:''}.`;
+
+  const roleEmployees = employees.filter(e=>e.role===role);
+  if(!roleEmployees.length){ wrap.innerHTML = `<div class="empty-state">No ${role}s found on the current team roster.</div>`; return; }
+
+  const rows = roleEmployees.map(emp=>{
+    const ov = reco.data ? reco.data[emp.id] : null;
+    const hasOv = v => v!==undefined && v!=='' && v!==null;
+    const totalPoints = ov && hasOv(ov.totalPoints) ? Number(ov.totalPoints) : null;
+    const totalIr = ov && hasOv(ov.irCount) ? Number(ov.irCount) : null;
+    const totalReco = ov && hasOv(ov.reconCount) ? Number(ov.reconCount) : null;
+    const fr = ov && hasOv(ov.frCount) ? Number(ov.frCount) : null;
+    const frViaPoints = totalPoints!==null ? computeFrViaPoints(totalPoints) : null;
+    const totalFr = (fr!==null || frViaPoints!==null) ? computeTotalFr(fr||0, frViaPoints||0) : null;
+    const workedDays = computeWorkedDays(emp, dates);
+    const avgPoints = (totalPoints!==null && workedDays>0) ? round1(totalPoints/workedDays) : null;
+    const avgFr = (totalFr!==null && workedDays>0) ? round1(totalFr/workedDays) : null;
+    return {emp, totalPoints, totalIr, totalReco, fr, frViaPoints, totalFr, workedDays, avgPoints, avgFr, matched: !!ov};
+  });
+
+  const nameCell = r => `${esc(r.emp.name)}${r.emp.appName ? ` <span class="mono" style="color:var(--ink-soft); font-size:11px;">(${esc(r.emp.appName)})</span>` : ''}${!r.matched ? ' <span class="no-proof">— not in report</span>' : ''}`;
+
+  let headerCols, bodyRows;
+  if(role==='analyst'){
+    headerCols = `<th>Name (App Name)</th><th>Total Points</th><th>Total IR</th><th>Total Reco</th><th>Worked Days</th><th>Average Points</th>`;
+    bodyRows = rows.map(r=>`
+      <tr>
+        <td>${nameCell(r)}</td>
+        <td>${r.totalPoints===null?'—':r.totalPoints}</td>
+        <td>${r.totalIr===null?'—':r.totalIr}</td>
+        <td>${r.totalReco===null?'—':r.totalReco}</td>
+        <td>${r.workedDays}</td>
+        <td>${r.avgPoints===null?'—':r.avgPoints}</td>
+      </tr>`).join('');
+  } else {
+    headerCols = `<th>Name (App Name)</th><th>Total Points</th><th>FR (Final Review)</th><th>FR via Points</th><th>Total FR</th><th>Worked Days</th><th>Average FR</th>`;
+    bodyRows = rows.map(r=>`
+      <tr>
+        <td>${nameCell(r)}</td>
+        <td>${r.totalPoints===null?'—':r.totalPoints}</td>
+        <td>${r.fr===null?'—':r.fr}</td>
+        <td>${r.frViaPoints===null?'—':r.frViaPoints}</td>
+        <td>${r.totalFr===null?'—':r.totalFr}</td>
+        <td>${r.workedDays}</td>
+        <td>${r.avgFr===null?'—':r.avgFr}</td>
+      </tr>`).join('');
+  }
+
+  wrap.innerHTML = `
+    <table class="hist-table">
+      <thead><tr>${headerCols}</tr></thead>
+      <tbody>${bodyRows}</tbody>
+    </table>`;
+}
+
+function handleRecoUpload(periodType){
+  return function(e){
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt)=>{
+      try{
+        const wb = XLSX.read(evt.target.result, {type: file.name.endsWith('.csv') ? 'string' : 'array'});
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, {defval:'', raw:false});
+        if(!rows.length){ toast('That report looks empty.'); return; }
+
+        // Column mapping: User → App Name, Points → Total Points, Initial Review → Total IR,
+        // Reconcile → Total Reco, Final Review → FR (Final Review).
+        const appNameKey = findKey(rows[0], ['user','appname','app']);
+        const nameKey = findKey(rows[0], ['name']);
+        const ptsKey = findKey(rows[0], ['points','totalpoints']);
+        const irKey = findKey(rows[0], ['initialreview','totalir','ircount','ir']);
+        const recoKey = findKey(rows[0], ['reconcile','totalreco','reconciliationcount','reconcount','reco']);
+        const frKey = findKey(rows[0], ['finalreview','totalfr','frcount','fr']);
+        if(!appNameKey && !nameKey){ toast('Report needs a "User" (App Name) or Name column to match employees.'); return; }
+
+        const data = {};
+        let matched=0, unmatched=0;
+        rows.forEach(r=>{
+          let emp = null;
+          if(appNameKey){
+            const an = cleanText(r[appNameKey]);
+            if(an) emp = employees.find(e=>(e.appName||'').toLowerCase() === an.toLowerCase());
+          }
+          if(!emp && nameKey){
+            const nm = cleanText(r[nameKey]);
+            if(nm){
+              emp = employees.find(e=>e.name.toLowerCase()===nm.toLowerCase()) ||
+                    employees.find(e=>e.name.toLowerCase().includes(nm.toLowerCase()) || nm.toLowerCase().includes(e.name.toLowerCase()));
+            }
+          }
+          if(!emp){
+            const an = appNameKey ? cleanText(r[appNameKey]) : '';
+            const nm = nameKey ? cleanText(r[nameKey]) : '';
+            if(!an && !nm) return; // blank row, skip silently
+            unmatched++;
+            return;
+          }
+          matched++;
+          data[emp.id] = {
+            totalPoints: ptsKey ? numOrEmpty(r[ptsKey]) : undefined,
+            irCount: irKey ? numOrEmpty(r[irKey]) : undefined,
+            reconCount: recoKey ? numOrEmpty(r[recoKey]) : undefined,
+            frCount: frKey ? numOrEmpty(r[frKey]) : undefined
+          };
+        });
+
+        const {periodKey} = getPerfDates(periodType);
+        const payload = {data, fileName:file.name, uploadedAt:new Date().toISOString(), matched, unmatched};
+        await storeSet(`reco:${periodType}:${periodKey}`, JSON.stringify(payload));
+        toast(`Reconciliation report saved — ${matched} matched${unmatched?`, ${unmatched} unmatched`:''}.`);
+        renderPerfTab(periodType);
+      }catch(err){
+        console.error(err);
+        toast('Could not read that reconciliation report.');
+      }
+    };
+    if(file.name.endsWith('.csv')) reader.readAsText(file);
+    else reader.readAsArrayBuffer(file);
+  };
+}
+
+init();
+</script>
+</body>
+</html>
