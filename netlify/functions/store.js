@@ -60,57 +60,41 @@ function sleep(ms) {
  * up to ~60s-old data. Strong consistency removes that gap entirely.
  */
 async function atomicUpdateJson(store, key, applyPatch) {
-  for (let attempt = 0; attempt < MAX_MERGE_ATTEMPTS; attempt++) {
-    await sleep(retryDelayMs(attempt));
+  /*
+   * Netlify Blobs uses last-write-wins semantics. The previous implementation
+   * used conditional ETag writes and could turn overlapping normal saves into
+   * a false 409 after repeated retries. This dashboard needs the merged field
+   * update to succeed reliably, so we use read -> merge -> write with a small
+   * retry for transient failures.
+   */
+  let lastError = null;
 
-    let existing = null;
-    let etag = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await sleep(attempt === 0 ? 0 : 80 + Math.floor(Math.random() * 180));
+
     try {
-      const entry = await store.getWithMetadata(key, { type: 'json' });
-      if (entry) {
-        existing = isPlainObject(entry.data) ? entry.data : {};
-        etag = entry.etag;
+      let existing = null;
+      try {
+        const entry = await store.getWithMetadata(key, { type: 'json' });
+        if (entry) existing = isPlainObject(entry.data) ? entry.data : {};
+      } catch (readErr) {
+        existing = null;
       }
-    } catch (err) {
-      // No entry yet, or it wasn't valid JSON — start fresh.
-      existing = null;
-      etag = null;
-    }
 
-    const base = existing || {};
-    const next = applyPatch({ ...base });
+      const base = existing || {};
+      const next = applyPatch({ ...base });
 
-    const writeOpts = etag ? { onlyIfMatch: etag } : { onlyIfNew: true };
-    let result;
-    try {
-      result = await store.set(key, JSON.stringify(next), writeOpts);
-    } catch (err) {
-      console.error('atomicUpdateJson set failed', key, err);
-      result = { modified: false };
-    }
-
-    if (result && result.modified !== false) {
+      await store.set(key, JSON.stringify(next));
       return next;
+    } catch (err) {
+      lastError = err;
+      console.error(`atomicUpdateJson attempt ${attempt + 1} failed`, key, err);
     }
-    // Someone else wrote to this key between our read and write — the
-    // condition correctly rejected us (this is validated against true
-    // origin state, so a newer write is never silently lost here) — loop
-    // and retry against whatever is now current.
   }
-  throw new Error(`Could not update "${key}" after ${MAX_MERGE_ATTEMPTS} attempts due to concurrent writes.`);
+
+  throw lastError || new Error(`Could not update "${key}".`);
 }
 
-/**
- * Same idea as the `merge` action below, but one level deeper: `patch` is
- * `{ recordId: { field: value, field2: null } | null }`. Each named
- * record's fields are merged individually (a `null` field value deletes
- * just that field) rather than the whole `recordId` sub-object being
- * replaced wholesale — a `null` at the recordId level still deletes the
- * entire record. This is what lets two different users edit two
- * *different fields of the same record* (e.g. one browser changing an
- * employee's attendance status while another is still saving that same
- * employee's performance numbers) without either overwriting the other.
- */
 function applyFieldMerge(base, patch) {
   const next = { ...base };
   for (const recordId of Object.keys(patch)) {
@@ -240,8 +224,8 @@ exports.handler = async (event) => {
           });
           return json(200, { key, ok: true, value: result });
         } catch (err) {
-          console.error('store merge conflict', key, err);
-          return json(409, { error: 'Could not save due to a conflicting concurrent update. Please retry.' });
+          console.error('store merge failed after retries', key, err);
+          return json(500, { error: 'Could not save the data after several retries. Please try again.' });
         }
       }
 
@@ -260,8 +244,8 @@ exports.handler = async (event) => {
           const result = await atomicUpdateJson(store, key, (base) => applyFieldMerge(base, fieldMerge));
           return json(200, { key, ok: true, value: result });
         } catch (err) {
-          console.error('store fieldMerge conflict', key, err);
-          return json(409, { error: 'Could not save due to a conflicting concurrent update. Please retry.' });
+          console.error('store fieldMerge failed after retries', key, err);
+          return json(500, { error: 'Could not save the data after several retries. Please try again.' });
         }
       }
 
@@ -272,35 +256,40 @@ exports.handler = async (event) => {
       if (arrayAdd !== undefined) {
         try {
           let finalArray = [];
-          for (let attempt = 0; attempt < MAX_MERGE_ATTEMPTS; attempt++) {
-            await sleep(retryDelayMs(attempt));
-            let existingArr = [];
-            let etag = null;
+          let lastError = null;
+
+          for (let attempt = 0; attempt < 4; attempt++) {
+            await sleep(attempt === 0 ? 0 : 80 + Math.floor(Math.random() * 180));
+
             try {
-              const entry = await store.getWithMetadata(key, { type: 'json' });
-              if (entry) {
-                existingArr = Array.isArray(entry.data) ? entry.data : [];
-                etag = entry.etag;
+              let existingArr = [];
+              try {
+                const entry = await store.getWithMetadata(key, { type: 'json' });
+                if (entry && Array.isArray(entry.data)) existingArr = entry.data;
+              } catch (readErr) {
+                existingArr = [];
               }
+
+              if (existingArr.includes(arrayAdd)) {
+                finalArray = existingArr;
+                lastError = null;
+                break;
+              }
+
+              finalArray = [...existingArr, arrayAdd].sort();
+              await store.set(key, JSON.stringify(finalArray));
+              lastError = null;
+              break;
             } catch (err) {
-              existingArr = [];
-              etag = null;
-            }
-            if (existingArr.includes(arrayAdd)) {
-              finalArray = existingArr;
-              break;
-            }
-            const nextArr = [...existingArr, arrayAdd].sort();
-            const writeOpts = etag ? { onlyIfMatch: etag } : { onlyIfNew: true };
-            const result = await store.set(key, JSON.stringify(nextArr), writeOpts);
-            if (result && result.modified !== false) {
-              finalArray = nextArr;
-              break;
-            }
-            if (attempt === MAX_MERGE_ATTEMPTS - 1) {
-              return json(409, { error: 'Could not update index due to a conflicting concurrent update. Please retry.' });
+              lastError = err;
+              console.error(`store arrayAdd attempt ${attempt + 1} failed`, key, err);
             }
           }
+
+          if (lastError) {
+            return json(500, { error: 'Could not update the data index after several retries. Please try again.' });
+          }
+
           return json(200, { key, ok: true, value: finalArray });
         } catch (err) {
           console.error('store arrayAdd error', key, err);

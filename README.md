@@ -111,3 +111,10 @@ trigger a new production deploy so the Function receives them.
 
 The Function first uses these secure variables when present; otherwise it
 falls back to Netlify's automatic Blobs environment configuration.
+
+
+## FIXED-v7 — Attendance save reliability
+- Removed the ETag conditional-write loop that was producing repeated 409 conflicts.
+- Attendance field merges now use read-merge-write with transient retry.
+- The attendance/leave index append path uses the same reliable retry approach.
+- v6 Netlify Blobs credential fallback and v5 screenshot compression remain.
