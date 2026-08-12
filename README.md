@@ -95,3 +95,19 @@ ADMIN_PASSWORD=choose-a-local-password
 - Edit-leave screenshot uploads use the same compression path.
 - Storage requests over the safe client payload threshold show a clear message.
 - The Netlify storage function now returns HTTP 413 with a clear explanation for oversized requests.
+
+
+## FIXED-v6 — Netlify Blobs deployment configuration
+
+This version keeps the v5 screenshot compression fixes and adds an explicit
+Netlify Blobs configuration fallback.
+
+In the Netlify site environment variables, add:
+- `NETLIFY_AUTH_TOKEN` = a Netlify Personal Access Token with permission to access the site.
+- `NETLIFY_SITE_ID` = the Netlify site's Project/Site ID.
+
+Do NOT put the token in GitHub or in frontend code. After adding the variables,
+trigger a new production deploy so the Function receives them.
+
+The Function first uses these secure variables when present; otherwise it
+falls back to Netlify's automatic Blobs environment configuration.

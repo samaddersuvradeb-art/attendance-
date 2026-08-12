@@ -145,10 +145,29 @@ exports.handler = async (event) => {
     // reads, which is a good trade for this app's traffic level). This is
     // what closes the "stale browser data" / "page refresh right after
     // saving" gap — see the comment on atomicUpdateJson above.
-    store = getStore({ name: STORE_NAME, consistency: 'strong' });
+    const blobSiteID = process.env.NETLIFY_SITE_ID || process.env.SITE_ID || process.env.NETLIFY_SITE_ID_VALUE;
+    const blobToken = process.env.NETLIFY_AUTH_TOKEN || process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_TOKEN;
+
+    // Netlify normally injects Blobs environment variables automatically.
+    // If this deployment does not, explicitly provide the site ID + token
+    // through secure Netlify environment variables.
+    if (blobSiteID && blobToken) {
+      store = getStore({
+        name: STORE_NAME,
+        consistency: 'strong',
+        siteID: blobSiteID,
+        token: blobToken
+      });
+    } else {
+      // Preserve Netlify's automatic Blobs configuration when available.
+      store = getStore({ name: STORE_NAME, consistency: 'strong' });
+    }
   } catch (err) {
     console.error('Could not open Netlify Blobs store', err);
-    return json(500, { error: 'Storage is not available on this deployment.' });
+    const detail = err && err.name === 'MissingBlobsEnvironmentError'
+      ? 'Netlify Blobs is not configured. Add NETLIFY_AUTH_TOKEN and NETLIFY_SITE_ID (or SITE_ID) in Netlify environment variables, then redeploy.'
+      : 'Storage is not available on this deployment.';
+    return json(500, { error: detail });
   }
 
   const method = event.httpMethod;
